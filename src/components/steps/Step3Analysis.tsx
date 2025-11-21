@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Download } from 'lucide-react';
 import { useFinanceStore } from '@/store/useFinanceStore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import { Pie, PieChart, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -16,12 +16,27 @@ interface PivotData {
   average: number;
 }
 
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
+
 export function Step3Analysis() {
   const { transactions, selectedMonth, hoveredMonth, setSelectedMonth, setHoveredMonth, exportConfig } =
     useFinanceStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const allCategories = new Set(Object.keys(pivotData));
+    setExpandedCategories(allCategories);
+  }, [transactions]);
 
   // Build pivot data
   const pivotData = useMemo(() => {
@@ -32,7 +47,7 @@ export function Step3Analysis() {
       .forEach((t) => {
         const category = t.category!;
         const subcategory = t.subcategory || 'Uncategorized';
-        const month = t.date.substring(0, 7); // YYYY-MM
+        const month = t.dateString.substring(0, 7); // YYYY-MM
 
         if (!data[category]) data[category] = {};
         if (!data[category][subcategory]) {
@@ -93,60 +108,33 @@ export function Step3Analysis() {
     setExpandedSubcategories(newSet);
   };
 
-  // Radar chart data
-  const radarDataCategories = useMemo(() => {
-    const getDistribution = (month: string | null) => {
-      if (!month) return [];
-      const categoryTotals: Record<string, number> = {};
-      Object.keys(pivotData).forEach((cat) => {
-        categoryTotals[cat] = 0;
-        Object.values(pivotData[cat]).forEach((sub) => {
-          categoryTotals[cat] += sub.months[month] || 0;
-        });
+  // Pie chart data
+  const pieDataCategories = useMemo(() => {
+    if (!selectedMonth) return [];
+    const categoryTotals: Record<string, number> = {};
+    Object.keys(pivotData).forEach((cat) => {
+      categoryTotals[cat] = 0;
+      Object.values(pivotData[cat]).forEach((sub) => {
+        categoryTotals[cat] += sub.months[selectedMonth] || 0;
       });
-      return Object.keys(categoryTotals).map((cat) => ({
-        category: cat,
-        value: categoryTotals[cat],
-      }));
-    };
+    });
+    return Object.entries(categoryTotals)
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({ name, value }));
+  }, [pivotData, selectedMonth]);
 
-    const selected = getDistribution(selectedMonth);
-    const hovered = getDistribution(hoveredMonth);
-
-    // Merge
-    const allCats = new Set([...selected.map((d) => d.category), ...hovered.map((d) => d.category)]);
-    return Array.from(allCats).map((cat) => ({
-      category: cat,
-      selected: selected.find((d) => d.category === cat)?.value || 0,
-      hovered: hovered.find((d) => d.category === cat)?.value || 0,
-    }));
-  }, [pivotData, selectedMonth, hoveredMonth]);
-
-  const radarDataSubcategories = useMemo(() => {
-    const getDistribution = (month: string | null) => {
-      if (!month) return [];
-      const subTotals: Record<string, number> = {};
-      Object.values(pivotData).forEach((subs) => {
-        Object.entries(subs).forEach(([subName, subData]) => {
-          subTotals[subName] = (subTotals[subName] || 0) + (subData.months[month] || 0);
-        });
+  const pieDataSubcategories = useMemo(() => {
+    if (!selectedMonth) return [];
+    const subTotals: Record<string, number> = {};
+    Object.values(pivotData).forEach((subs) => {
+      Object.entries(subs).forEach(([subName, subData]) => {
+        subTotals[subName] = (subTotals[subName] || 0) + (subData.months[selectedMonth] || 0);
       });
-      return Object.keys(subTotals).map((sub) => ({
-        subcategory: sub,
-        value: subTotals[sub],
-      }));
-    };
-
-    const selected = getDistribution(selectedMonth);
-    const hovered = getDistribution(hoveredMonth);
-
-    const allSubs = new Set([...selected.map((d) => d.subcategory), ...hovered.map((d) => d.subcategory)]);
-    return Array.from(allSubs).map((sub) => ({
-      subcategory: sub,
-      selected: selected.find((d) => d.subcategory === sub)?.value || 0,
-      hovered: hovered.find((d) => d.subcategory === sub)?.value || 0,
-    }));
-  }, [pivotData, selectedMonth, hoveredMonth]);
+    });
+    return Object.entries(subTotals)
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({ name, value }));
+  }, [pivotData, selectedMonth]);
 
   const handleExportData = () => {
     const csv = [
@@ -177,10 +165,80 @@ export function Step3Analysis() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-      {/* Main Area - Pivot Table */}
-      <div className="lg:col-span-2 space-y-4">
+    <div className="space-y-6">
+      {/* Top Row - Pie Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-4">
+          <h3 className="text-sm font-semibold mb-2">Categories Distribution</h3>
+          {selectedMonth ? (
+            <>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={pieDataCategories}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={(entry) => `${entry.name}: ${entry.value.toFixed(0)}`}
+                  >
+                    {pieDataCategories.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+              <p className="text-xs text-center text-muted-foreground mt-2">
+                Selected: {selectedMonth}
+              </p>
+            </>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              Click a month in the table to view distribution
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold mb-2">Subcategories Distribution</h3>
+          {selectedMonth ? (
+            <>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={pieDataSubcategories}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={(entry) => `${entry.name}: ${entry.value.toFixed(0)}`}
+                  >
+                    {pieDataSubcategories.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+              <p className="text-xs text-center text-muted-foreground mt-2">
+                Selected: {selectedMonth}
+              </p>
+            </>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              Click a month in the table to view distribution
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Pivot Table */}
+      <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Pivot Table</h3>
             <div className="flex gap-2">
@@ -196,7 +254,7 @@ export function Step3Analysis() {
           </div>
 
           <Input
-            placeholder="Search transactions..."
+            placeholder="Filter by description..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="mb-4"
@@ -319,8 +377,8 @@ export function Step3Analysis() {
                                     (t) =>
                                       t.category === category &&
                                       (t.subcategory || 'Uncategorized') === subcategory &&
-                                      (!searchQuery ||
-                                        t.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                                      (!debouncedSearch ||
+                                        t.description.toLowerCase().includes(debouncedSearch.toLowerCase()))
                                   )
                                   .map((t, idx) => (
                                     <tr key={idx} className="hover:bg-muted/50 text-xs">
@@ -336,7 +394,7 @@ export function Step3Analysis() {
                                           onMouseEnter={() => setHoveredMonth(month)}
                                           onMouseLeave={() => setHoveredMonth(null)}
                                         >
-                                          {t.date.startsWith(month) ? Math.abs(t.amount).toFixed(2) : '-'}
+                                          {t.dateString.startsWith(month) ? Math.abs(t.amount).toFixed(2) : '-'}
                                         </td>
                                       ))}
                                       <td className="text-right p-2 border">{Math.abs(t.amount).toFixed(2)}</td>
@@ -353,79 +411,6 @@ export function Step3Analysis() {
             </table>
           </div>
         </Card>
-      </div>
-
-      {/* Right Sidebar - Radar Charts */}
-      <div className="lg:col-span-1 space-y-4">
-        <Card className="p-4">
-          <h3 className="text-sm font-semibold mb-2">Categories Distribution</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <RadarChart data={radarDataCategories}>
-              <PolarGrid />
-              <PolarAngleAxis dataKey="category" tick={{ fontSize: 10 }} />
-              <PolarRadiusAxis />
-              <Radar
-                name="Selected"
-                dataKey="selected"
-                stroke="hsl(var(--primary))"
-                fill="hsl(var(--primary))"
-                fillOpacity={0.6}
-              />
-              <Radar
-                name="Hovered"
-                dataKey="hovered"
-                stroke="hsl(var(--accent))"
-                fill="transparent"
-                strokeWidth={2}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
-          <div className="flex gap-4 text-xs mt-2 justify-center">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-primary rounded" />
-              <span>Selected</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 border-2 border-accent rounded" />
-              <span>Hovered</span>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <h3 className="text-sm font-semibold mb-2">Subcategories Distribution</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <RadarChart data={radarDataSubcategories}>
-              <PolarGrid />
-              <PolarAngleAxis dataKey="subcategory" tick={{ fontSize: 10 }} />
-              <PolarRadiusAxis />
-              <Radar
-                name="Selected"
-                dataKey="selected"
-                stroke="hsl(var(--secondary))"
-                fill="hsl(var(--secondary))"
-                fillOpacity={0.6}
-              />
-              <Radar
-                name="Hovered"
-                dataKey="hovered"
-                stroke="hsl(var(--accent))"
-                fill="transparent"
-                strokeWidth={2}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
-          <div className="flex gap-4 text-xs mt-2 justify-center">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-secondary rounded" />
-              <span>Selected</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 border-2 border-accent rounded" />
-              <span>Hovered</span>
-            </div>
-          </div>
-        </Card>
 
         <Card className="p-4 bg-primary-light">
           <h3 className="text-sm font-semibold mb-2">Privacy Notice</h3>
@@ -434,7 +419,6 @@ export function Step3Analysis() {
             remains completely private.
           </p>
         </Card>
-      </div>
     </div>
   );
 }

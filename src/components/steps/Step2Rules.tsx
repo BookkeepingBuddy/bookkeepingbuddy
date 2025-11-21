@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { RuleHelpDialog } from '@/components/RuleHelpDialog';
 
 function SortableRuleItem({ rule }: { rule: Rule }) {
   const { updateRule, deleteRule, applyRules } = useFinanceStore();
@@ -77,20 +78,32 @@ function SortableRuleItem({ rule }: { rule: Rule }) {
           </div>
 
           <div>
-            <Label className="text-xs">JavaScript Logic</Label>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs">JavaScript Logic</Label>
+              <RuleHelpDialog />
+            </div>
             <Textarea
               value={rule.jsCode}
               onChange={(e) => handleCodeChange(e.target.value)}
               onBlur={handleBlur}
-              placeholder="return row.description.includes('RENT');"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.shiftKey) {
+                  e.preventDefault();
+                  if (rule.isValid) {
+                    applyRules();
+                  }
+                }
+              }}
+              placeholder='return row.description.includes("Ticket");\n// or\nreturn row.amount > 1500;'
               className={cn(
-                'font-mono text-xs h-20',
+                'font-mono text-xs h-24',
                 !rule.isValid && 'border-error border-2'
               )}
             />
             {!rule.isValid && rule.error && (
               <p className="text-xs text-error mt-1">{rule.error}</p>
             )}
+            <p className="text-xs text-muted-foreground mt-1">Press Shift+Enter to apply</p>
           </div>
         </div>
 
@@ -113,6 +126,8 @@ function SortableRuleItem({ rule }: { rule: Rule }) {
 export function Step2Rules() {
   const { rules, transactions, addRule, reorderRules, applyRules } = useFinanceStore();
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [unmatchedFilter, setUnmatchedFilter] = useState('');
+  const [unmatchedSort, setUnmatchedSort] = useState<'date' | 'amount'>('date');
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -133,7 +148,15 @@ export function Step2Rules() {
   };
 
   const matchedTransactions = transactions.filter((t) => t.category);
-  const unmatchedTransactions = transactions.filter((t) => !t.category);
+  const unmatchedTransactions = transactions
+    .filter((t) => !t.category)
+    .filter((t) => !unmatchedFilter || t.description.toLowerCase().includes(unmatchedFilter.toLowerCase()))
+    .sort((a, b) => {
+      if (unmatchedSort === 'date') {
+        return a.date.getTime() - b.date.getTime();
+      }
+      return b.amount - a.amount;
+    });
 
   const filteredMatched =
     filterCategory === 'all'
@@ -174,9 +197,28 @@ export function Step2Rules() {
       {/* Main Area - Matched/Unmatched Tables */}
       <div className="lg:col-span-2 space-y-4">
         <Card className="p-4 h-[calc(50vh-2rem)] overflow-hidden flex flex-col">
-          <h3 className="text-lg font-semibold mb-3">
-            Unmatched Transactions ({unmatchedTransactions.length})
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold">
+              Unmatched Transactions ({unmatchedTransactions.length})
+            </h3>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Filter..."
+                value={unmatchedFilter}
+                onChange={(e) => setUnmatchedFilter(e.target.value)}
+                className="w-32 h-8"
+              />
+              <Select value={unmatchedSort} onValueChange={(val: 'date' | 'amount') => setUnmatchedSort(val)}>
+                <SelectTrigger className="w-32 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Sort by Date</SelectItem>
+                  <SelectItem value="amount">Sort by Amount</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="flex-1 overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted">
@@ -189,15 +231,19 @@ export function Step2Rules() {
               <tbody>
                 {unmatchedTransactions.map((t, idx) => (
                   <tr key={idx} className="border-b border-border hover:bg-muted/50">
-                    <td className="p-2">{t.date}</td>
-                    <td className="p-2 truncate max-w-xs">{t.description}</td>
-                    <td className="p-2 text-right">{t.amount.toFixed(2)}</td>
+                    <td className="p-2 whitespace-nowrap">{t.dateString}</td>
+                    <td className="p-2">
+                      <div className="max-w-xs">{t.description}</div>
+                    </td>
+                    <td className="p-2 text-right whitespace-nowrap">{t.amount.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {unmatchedTransactions.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">All transactions matched!</p>
+              <p className="text-center text-muted-foreground py-8">
+                {unmatchedFilter ? 'No matching transactions' : 'All transactions matched!'}
+              </p>
             )}
           </div>
         </Card>
@@ -235,15 +281,17 @@ export function Step2Rules() {
               <tbody>
                 {filteredMatched.map((t, idx) => (
                   <tr key={idx} className="border-b border-border hover:bg-muted/50">
-                    <td className="p-2">{t.date}</td>
-                    <td className="p-2 truncate max-w-xs">{t.description}</td>
+                    <td className="p-2 whitespace-nowrap">{t.dateString}</td>
+                    <td className="p-2">
+                      <div className="max-w-xs">{t.description}</div>
+                    </td>
                     <td className="p-2">
                       <span className="px-2 py-0.5 bg-primary/10 text-primary rounded text-xs">
                         {t.category}
                       </span>
                     </td>
                     <td className="p-2 text-muted-foreground">{t.subcategory}</td>
-                    <td className="p-2 text-right">{t.amount.toFixed(2)}</td>
+                    <td className="p-2 text-right whitespace-nowrap">{t.amount.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
