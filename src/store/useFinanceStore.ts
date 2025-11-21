@@ -16,10 +16,13 @@ export interface ColumnMapping {
   amountIndex: number | null;
   decimalSeparator: '.' | ',';
   descriptionIndices: number[];
+  columnNames: string[];
+  hasHeaders: boolean;
 }
 
 export interface Transaction {
-  date: string;
+  date: Date;
+  dateString: string;
   amount: number;
   description: string;
   category?: string;
@@ -65,6 +68,8 @@ const initialColumnMapping: ColumnMapping = {
   amountIndex: null,
   decimalSeparator: '.',
   descriptionIndices: [],
+  columnNames: [],
+  hasHeaders: false,
 };
 
 export const useFinanceStore = create<FinanceStore>()(
@@ -115,16 +120,51 @@ export const useFinanceStore = create<FinanceStore>()(
       applyRules: () => {
         const { parsedRows, columnMapping, rules } = get();
         
-        const transactions: Transaction[] = parsedRows.map((row) => {
+        const startRow = columnMapping.hasHeaders ? 1 : 0;
+        const dataRows = parsedRows.slice(startRow);
+        
+        const parseDate = (dateStr: string, format: string): Date => {
+          const str = String(dateStr).trim();
+          let year = 0, month = 0, day = 0;
+          
+          if (format === 'YYYY-MM-DD') {
+            [year, month, day] = str.split('-').map(Number);
+          } else if (format === 'DD-MM-YYYY') {
+            [day, month, year] = str.split('-').map(Number);
+          } else if (format === 'MM-DD-YYYY') {
+            [month, day, year] = str.split('-').map(Number);
+          } else if (format === 'YYYYMMDD') {
+            year = Number(str.substring(0, 4));
+            month = Number(str.substring(4, 6));
+            day = Number(str.substring(6, 8));
+          } else if (format === 'DD/MM/YYYY') {
+            [day, month, year] = str.split('/').map(Number);
+          } else if (format === 'MM/DD/YYYY') {
+            [month, day, year] = str.split('/').map(Number);
+          }
+          
+          return new Date(year, month - 1, day);
+        };
+        
+        const transactions: Transaction[] = dataRows.map((row) => {
           const rawData: Record<string, any> = {};
           row.forEach((cell, idx) => {
+            const colName = columnMapping.columnNames[idx] || `col${idx}`;
+            rawData[colName] = cell;
             rawData[`col${idx}`] = cell;
           });
           
           // Parse date
-          let date = '';
+          let date = new Date();
+          let dateString = '';
           if (columnMapping.dateIndex !== null) {
-            date = String(row[columnMapping.dateIndex] || '');
+            const dateValue = String(row[columnMapping.dateIndex] || '');
+            date = parseDate(dateValue, columnMapping.dateFormat);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            dateString = `${year}-${month}-${day}`;
+            rawData.date = date;
           }
           
           // Parse amount
@@ -135,6 +175,7 @@ export const useFinanceStore = create<FinanceStore>()(
               amountStr = amountStr.replace(',', '.');
             }
             amount = parseFloat(amountStr.replace(/[^0-9.-]/g, '')) || 0;
+            rawData.amount = amount;
           }
           
           // Parse description
@@ -142,9 +183,11 @@ export const useFinanceStore = create<FinanceStore>()(
             .map((idx) => String(row[idx] || ''))
             .join(' ')
             .trim();
+          rawData.description = description;
           
           const transaction: Transaction = {
             date,
+            dateString,
             amount,
             description,
             rawData,

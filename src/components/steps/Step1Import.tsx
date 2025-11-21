@@ -39,6 +39,12 @@ export function Step1Import() {
     }
   }, [parsedRows]);
 
+  const detectHeaders = (rows: any[][]) => {
+    if (rows.length === 0) return false;
+    const firstRow = rows[0];
+    return firstRow.every((cell: any) => typeof cell === 'string' && isNaN(Number(cell)));
+  };
+
   const handleDataFile = async (file: File) => {
     const extension = file.name.split('.').pop()?.toLowerCase();
     
@@ -49,7 +55,15 @@ export function Step1Import() {
         
         Papa.parse(text, {
           complete: (result) => {
-            setParsedRows(result.data as any[][]);
+            const rows = result.data as any[][];
+            setParsedRows(rows);
+            
+            const hasHeaders = detectHeaders(rows);
+            const columnNames = hasHeaders 
+              ? rows[0].map((cell: any) => String(cell)) 
+              : rows[0]?.map((_, idx) => `Column ${idx}`) || [];
+            
+            setColumnMapping({ columnNames, hasHeaders });
             toast.success('File parsed successfully');
           },
           error: (error) => {
@@ -60,11 +74,18 @@ export function Step1Import() {
         const arrayBuffer = await file.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
         
         const text = XLSX.utils.sheet_to_csv(firstSheet);
         setRawFileContent(text);
-        setParsedRows(jsonData as any[][]);
+        setParsedRows(jsonData);
+        
+        const hasHeaders = detectHeaders(jsonData);
+        const columnNames = hasHeaders 
+          ? jsonData[0].map((cell: any) => String(cell)) 
+          : jsonData[0]?.map((_, idx) => `Column ${idx}`) || [];
+        
+        setColumnMapping({ columnNames, hasHeaders });
         toast.success('Excel file parsed successfully');
       } else {
         toast.error('Unsupported file format');
@@ -99,15 +120,22 @@ export function Step1Import() {
     const json: Record<string, any> = {};
     
     previewRow.forEach((cell, idx) => {
+      const colName = columnMapping.columnNames[idx] || `col${idx}`;
+      json[colName] = cell;
       json[`col${idx}`] = cell;
     });
     
     // Add parsed fields
     if (columnMapping.dateIndex !== null && previewRow[columnMapping.dateIndex]) {
-      json.date = previewRow[columnMapping.dateIndex];
+      const dateStr = String(previewRow[columnMapping.dateIndex]);
+      json.date = new Date(dateStr);
     }
     if (columnMapping.amountIndex !== null && previewRow[columnMapping.amountIndex]) {
-      json.amount = previewRow[columnMapping.amountIndex];
+      let amountStr = String(previewRow[columnMapping.amountIndex]);
+      if (columnMapping.decimalSeparator === ',') {
+        amountStr = amountStr.replace(',', '.');
+      }
+      json.amount = parseFloat(amountStr.replace(/[^0-9.-]/g, '')) || 0;
     }
     if (columnMapping.descriptionIndices.length > 0) {
       json.description = columnMapping.descriptionIndices
@@ -121,26 +149,27 @@ export function Step1Import() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
       {/* Left Panel - Controls */}
-      <div className="space-y-6">
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Import Data</h3>
-          <FileDropZone
-            onFileDrop={handleDataFile}
-            accept=".csv,.txt,.tab,.xls,.xlsx"
-            title="Drop Data File"
-            description="CSV, TXT, TAB, or Excel files"
-          />
-        </Card>
-
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Import Config</h3>
-          <FileDropZone
-            onFileDrop={handleConfigFile}
-            accept=".json"
-            title="Drop Config File"
-            description="config.json to restore settings"
-          />
-        </Card>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="p-4">
+            <FileDropZone
+              onFileDrop={handleDataFile}
+              accept=".csv,.txt,.tab,.xls,.xlsx"
+              title="Drop Data File"
+              description="CSV, TXT, TAB, XLS, XLSX"
+              className="p-4"
+            />
+          </Card>
+          <Card className="p-4">
+            <FileDropZone
+              onFileDrop={handleConfigFile}
+              accept=".json"
+              title="Drop Config File"
+              description="Restore settings"
+              className="p-4"
+            />
+          </Card>
+        </div>
 
         {parsedRows.length > 0 && (
           <Card className="p-6">
@@ -159,7 +188,7 @@ export function Step1Import() {
                   <SelectContent>
                     {previewRow?.map((cell, idx) => (
                       <SelectItem key={idx} value={idx.toString()}>
-                        [Index {idx}] {String(cell).substring(0, 30)}
+                        {columnMapping.columnNames[idx] || `Column ${idx}`}: {String(cell).substring(0, 30)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -198,7 +227,7 @@ export function Step1Import() {
                   <SelectContent>
                     {previewRow?.map((cell, idx) => (
                       <SelectItem key={idx} value={idx.toString()}>
-                        [Index {idx}] {String(cell).substring(0, 30)}
+                        {columnMapping.columnNames[idx] || `Column ${idx}`}: {String(cell).substring(0, 30)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -233,7 +262,7 @@ export function Step1Import() {
                         onCheckedChange={(checked) => handleDescriptionToggle(idx, checked as boolean)}
                       />
                       <label htmlFor={`desc-${idx}`} className="text-sm cursor-pointer">
-                        [Index {idx}] {String(cell).substring(0, 40)}
+                        {columnMapping.columnNames[idx] || `Column ${idx}`}: {String(cell).substring(0, 40)}
                       </label>
                     </div>
                   ))}
@@ -249,7 +278,7 @@ export function Step1Import() {
       </div>
 
       {/* Right Panel - Preview */}
-      <div className="space-y-6">
+      <div className="space-y-4 flex flex-col">
         {rawFileContent && (
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Raw Preview (First 2 Lines)</h3>
@@ -260,15 +289,17 @@ export function Step1Import() {
         )}
 
         {previewRow && (
-          <Card className="p-6">
+          <Card className="p-6 flex-1 flex flex-col">
             <h3 className="text-lg font-semibold mb-4">JSON Preview (First Row)</h3>
-            <pre className="bg-muted p-4 rounded text-xs overflow-x-auto">
+            <pre className="bg-muted p-4 rounded text-xs overflow-x-auto flex-1">
               {JSON.stringify(getJsonPreview(), null, 2)}
             </pre>
             <p className="text-xs text-muted-foreground mt-2">
-              These property names (col0, col1, date, amount, description) are available in your
-              JavaScript rules.
+              These property names are available in your JavaScript rules. Date is a Date object, amount is a number.
             </p>
+            <Button onClick={applyRules} className="w-full mt-4">
+              Next: Configure Rules →
+            </Button>
           </Card>
         )}
       </div>
