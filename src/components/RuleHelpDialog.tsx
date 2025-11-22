@@ -67,7 +67,7 @@ export function RuleHelpDialog() {
             Write JavaScript code that returns true/false to match transactions. Use Shift+Enter to apply rules.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-4 mt-4">
           <div className="bg-muted p-4 rounded-lg">
             <h4 className="font-semibold mb-2">Available Properties:</h4>
@@ -76,7 +76,8 @@ export function RuleHelpDialog() {
               <li><code className="bg-background px-1 rounded">row.dateString</code> - Date as YYYY-MM-DD string</li>
               <li><code className="bg-background px-1 rounded">row.amount</code> - Number (positive for income, negative for expenses)</li>
               <li><code className="bg-background px-1 rounded">row.description</code> - String with transaction description</li>
-              <li><code className="bg-background px-1 rounded">row.col0, row.col1, ...</code> - Raw column values by index</li>
+              <li><code className="bg-background px-1 rounded">row.rawData.col0, row.rawData.col1, ...</code> - Raw column values by index</li>
+              <li><code className="bg-background px-1 rounded">row.rawData.Omschrijving, ...</code> - Raw column values by header name (if available)</li>
             </ul>
           </div>
 

@@ -37,7 +37,7 @@ const Index = () => {
         <StepIndicator steps={STEPS} currentStep={currentStep} onStepClick={setCurrentStep} />
 
         <div className="mt-8">
-          {currentStep === 1 && <Step1Import />}
+          {currentStep === 1 && <Step1Import onNext={() => setCurrentStep(2)} />}
           {currentStep === 2 && <Step2Rules />}
           {currentStep === 3 && <Step3Analysis />}
         </div>

@@ -19,7 +19,11 @@ const DATE_FORMATS = [
   'MM/DD/YYYY',
 ];
 
-export function Step1Import() {
+interface Step1ImportProps {
+  onNext: () => void;
+}
+
+export function Step1Import({ onNext }: Step1ImportProps) {
   const {
     rawFileContent,
     parsedRows,
@@ -34,8 +38,8 @@ export function Step1Import() {
   const [previewRow, setPreviewRow] = useState<any[] | null>(null);
 
   useEffect(() => {
-    if (parsedRows.length > 0) {
-      setPreviewRow(parsedRows[0]);
+    if (parsedRows.length > 1) {
+      setPreviewRow(parsedRows[1]);
     }
   }, [parsedRows]);
 
@@ -47,22 +51,22 @@ export function Step1Import() {
 
   const handleDataFile = async (file: File) => {
     const extension = file.name.split('.').pop()?.toLowerCase();
-    
+
     try {
       if (extension === 'csv' || extension === 'txt' || extension === 'tab') {
         const text = await file.text();
         setRawFileContent(text);
-        
+
         Papa.parse(text, {
           complete: (result) => {
             const rows = result.data as any[][];
-            setParsedRows(rows);
-            
+
             const hasHeaders = detectHeaders(rows);
-            const columnNames = hasHeaders 
-              ? rows[0].map((cell: any) => String(cell)) 
+            setParsedRows(rows);
+            const columnNames = hasHeaders
+              ? rows[0].map((cell: any) => String(cell))
               : rows[0]?.map((_, idx) => `Column ${idx}`) || [];
-            
+
             setColumnMapping({ columnNames, hasHeaders });
             toast.success('File parsed successfully');
           },
@@ -75,16 +79,16 @@ export function Step1Import() {
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
-        
+
         const text = XLSX.utils.sheet_to_csv(firstSheet);
         setRawFileContent(text);
         setParsedRows(jsonData);
-        
+
         const hasHeaders = detectHeaders(jsonData);
-        const columnNames = hasHeaders 
-          ? jsonData[0].map((cell: any) => String(cell)) 
+        const columnNames = hasHeaders
+          ? jsonData[0].map((cell: any) => String(cell))
           : jsonData[0]?.map((_, idx) => `Column ${idx}`) || [];
-        
+
         setColumnMapping({ columnNames, hasHeaders });
         toast.success('Excel file parsed successfully');
       } else {
@@ -116,19 +120,42 @@ export function Step1Import() {
 
   const getJsonPreview = () => {
     if (!previewRow) return {};
-    
+
     const json: Record<string, any> = {};
-    
-    previewRow.forEach((cell, idx) => {
-      const colName = columnMapping.columnNames[idx] || `col${idx}`;
-      json[colName] = cell;
-      json[`col${idx}`] = cell;
-    });
-    
+
+    // previewRow.forEach((cell, idx) => {
+    //   const colName = columnMapping.columnNames[idx] || `col${idx}`;
+    //   json[colName] = cell;
+    //   json[`col${idx}`] = cell;
+    // });
+
+    const parseDate = (dateStr: string, format: string): Date => {
+      const str = String(dateStr).trim();
+      let year = 0, month = 0, day = 0;
+
+      if (format === 'YYYY-MM-DD') {
+        [year, month, day] = str.split('-').map(Number);
+      } else if (format === 'DD-MM-YYYY') {
+        [day, month, year] = str.split('-').map(Number);
+      } else if (format === 'MM-DD-YYYY') {
+        [month, day, year] = str.split('-').map(Number);
+      } else if (format === 'YYYYMMDD') {
+        year = Number(str.substring(0, 4));
+        month = Number(str.substring(4, 6));
+        day = Number(str.substring(6, 8));
+      } else if (format === 'DD/MM/YYYY') {
+        [day, month, year] = str.split('/').map(Number);
+      } else if (format === 'MM/DD/YYYY') {
+        [month, day, year] = str.split('/').map(Number);
+      }
+
+      return new Date(year, month - 1, day);
+    };
+
     // Add parsed fields
     if (columnMapping.dateIndex !== null && previewRow[columnMapping.dateIndex]) {
       const dateStr = String(previewRow[columnMapping.dateIndex]);
-      json.date = new Date(dateStr);
+      json.date = parseDate(dateStr, columnMapping.dateFormat).toISOString().split("T")[0];
     }
     if (columnMapping.amountIndex !== null && previewRow[columnMapping.amountIndex]) {
       let amountStr = String(previewRow[columnMapping.amountIndex]);
@@ -142,7 +169,7 @@ export function Step1Import() {
         .map((idx) => previewRow[idx])
         .join(' ');
     }
-    
+
     return json;
   };
 
@@ -297,7 +324,7 @@ export function Step1Import() {
             <p className="text-xs text-muted-foreground mt-2">
               These property names are available in your JavaScript rules. Date is a Date object, amount is a number.
             </p>
-            <Button onClick={applyRules} className="w-full mt-4">
+            <Button onClick={() => { applyRules(); onNext(); }} className="w-full mt-4">
               Next: Configure Rules →
             </Button>
           </Card>

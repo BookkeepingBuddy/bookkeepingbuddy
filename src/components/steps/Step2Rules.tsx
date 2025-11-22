@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { RuleHelpDialog } from '@/components/RuleHelpDialog';
+import { AIPromptDialog } from '@/components/AIPromptDialog';
 
 function SortableRuleItem({ rule }: { rule: Rule }) {
   const { updateRule, deleteRule, applyRules } = useFinanceStore();
@@ -172,10 +173,13 @@ export function Step2Rules() {
         <Card className="p-4 h-full overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Rules</h3>
-            <Button onClick={addRule} size="sm">
-              <Plus className="w-4 h-4 mr-1" />
-              Add Rule
-            </Button>
+            <div className="flex gap-2">
+              <AIPromptDialog />
+              <Button onClick={addRule} size="sm">
+                <Plus className="w-4 h-4 mr-1" />
+                Add Rule
+              </Button>
+            </div>
           </div>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
