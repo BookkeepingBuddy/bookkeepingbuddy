@@ -29,8 +29,8 @@ const Index = () => {
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center">
+            <div className="flex items-center gap-3 flex-1">
               <div>
                 <h1 className="text-xl font-bold text-foreground">Bookkeeping Buddy</h1>
                 <p className="text-xs text-muted-foreground">Privacy-First Financial Analysis</p>
@@ -43,7 +43,7 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <StepIndicator steps={STEPS} currentStep={currentStep} onStepClick={setCurrentStep} compact />
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 justify-end">
               {currentStep === 1 && (
                 <Button size="sm" onClick={handleNext}>
                   Next: Configure Rules
