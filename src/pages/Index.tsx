@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Lock, Github } from 'lucide-react';
+import { Lock, Github, ChevronRight } from 'lucide-react';
 import { StepIndicator } from '@/components/StepIndicator';
 import { Step1Import } from '@/components/steps/Step1Import';
 import { Step2Rules } from '@/components/steps/Step2Rules';
 import { Step3Analysis } from '@/components/steps/Step3Analysis';
 import { StorageManager } from '@/components/StorageManager';
 import { ConfigEditor } from '@/components/ConfigEditor';
+import { Button } from '@/components/ui/button';
+import { useFinanceStore } from '@/store/useFinanceStore';
 
 const STEPS = [
   { id: 1, name: 'Import', description: 'Load data & map columns' },
@@ -15,6 +17,12 @@ const STEPS = [
 
 const Index = () => {
   const [currentStep, setCurrentStep] = useState(1);
+  const { applyRules } = useFinanceStore();
+
+  const handleNext = () => {
+    applyRules();
+    setCurrentStep(currentStep + 1);
+  };
 
   return (
     <div className="h-screen bg-background">
@@ -22,16 +30,32 @@ const Index = () => {
       <header className="border-b border-border bg-card">
         <div className="px-6 py-3">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Bookkeeping Buddy</h1>
-              <p className="text-xs text-muted-foreground">Privacy-First Financial Analysis</p>
-            </div>
-            <StepIndicator steps={STEPS} currentStep={currentStep} onStepClick={setCurrentStep} compact />
             <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-xl font-bold text-foreground">Bookkeeping Buddy</h1>
+                <p className="text-xs text-muted-foreground">Privacy-First Financial Analysis</p>
+              </div>
               <div className="flex items-center gap-2 px-3 py-1.5 bg-success/10 text-success rounded-lg">
                 <Lock className="w-3 h-3" />
                 <span className="text-xs font-medium">100% Client-Side</span>
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <StepIndicator steps={STEPS} currentStep={currentStep} onStepClick={setCurrentStep} compact />
+            </div>
+            <div className="flex items-center gap-3">
+              {currentStep === 1 && (
+                <Button size="sm" onClick={handleNext}>
+                  Next: Configure Rules
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
+              {currentStep === 2 && (
+                <Button size="sm" onClick={handleNext}>
+                  Next: Analyze Transactions
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
               <ConfigEditor />
               <StorageManager />
               <a

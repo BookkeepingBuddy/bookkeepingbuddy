@@ -33,9 +33,20 @@ export function Step1Import({ onNext }: Step1ImportProps) {
     setColumnMapping,
     applyRules,
     importConfig,
+    loadParsedRows,
   } = useFinanceStore();
 
   const [previewRow, setPreviewRow] = useState<any[] | null>(null);
+
+  // Load parsed rows from localStorage on mount
+  useEffect(() => {
+    if (parsedRows.length === 0) {
+      const loaded = loadParsedRows();
+      if (loaded) {
+        toast.success('Restored data from previous session');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (parsedRows.length > 1) {
@@ -324,15 +335,6 @@ export function Step1Import({ onNext }: Step1ImportProps) {
                     ))}
                   </div>
                 </div>
-
-                <Button onClick={() => {
-                  const result = applyRules();
-                  if (result.dateParseErrors > 0) {
-                    toast.error(`${result.dateParseErrors} dates could not be parsed. Please check your date column and format settings.`);
-                  }
-                }} className="w-full">
-                  Apply Mapping
-                </Button>
               </div>
             </Card>
           )}
@@ -358,15 +360,6 @@ export function Step1Import({ onNext }: Step1ImportProps) {
               <p className="text-xs text-muted-foreground mt-2">
                 These property names are available in your JavaScript rules. Date is a Date object, amount is a number.
               </p>
-              <Button onClick={() => {
-                const result = applyRules();
-                if (result.dateParseErrors > 0) {
-                  toast.error(`${result.dateParseErrors} dates could not be parsed. Please check your date column and format settings.`);
-                }
-                onNext();
-              }} className="w-full mt-4">
-                Next: Configure Rules →
-              </Button>
             </Card>
           )}
         </div>
