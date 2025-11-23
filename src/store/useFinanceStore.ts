@@ -110,7 +110,7 @@ export const useFinanceStore = create<FinanceStore>()(
           id: `rule-${Date.now()}`,
           category: '',
           subcategory: '',
-          jsCode: 'return false;',
+          jsCode: 'let matches = [\n"coolblue",\n]\nreturn matches.some(w => row.description.includes(w));',
           isValid: true,
         };
         set((state) => ({ rules: [...state.rules, newRule] }));
@@ -154,6 +154,14 @@ export const useFinanceStore = create<FinanceStore>()(
               year = Number(str.substring(0, 4));
               month = Number(str.substring(4, 6));
               day = Number(str.substring(6, 8));
+            } else if (format === 'DDMMYYYY') {
+              year = Number(str.substring(4, 8));
+              month = Number(str.substring(2, 4));
+              day = Number(str.substring(0, 2));
+            } else if (format === 'MMDDYYYY') {
+              year = Number(str.substring(4, 8));
+              month = Number(str.substring(0, 2));
+              day = Number(str.substring(2, 4));
             } else if (format === 'DD/MM/YYYY') {
               [day, month, year] = str.split('/').map(Number);
             } else if (format === 'MM/DD/YYYY') {

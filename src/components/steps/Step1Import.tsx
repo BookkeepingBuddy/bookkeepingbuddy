@@ -6,7 +6,6 @@ import { useFinanceStore, Transaction } from '@/store/useFinanceStore';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 
@@ -15,6 +14,8 @@ const DATE_FORMATS = [
   'DD-MM-YYYY',
   'MM-DD-YYYY',
   'YYYYMMDD',
+  'DDMMYYYY',
+  'MMDDYYYY',
   'DD/MM/YYYY',
   'MM/DD/YYYY',
 ];
@@ -153,6 +154,14 @@ export function Step1Import({ onNext }: Step1ImportProps) {
         year = Number(str.substring(0, 4));
         month = Number(str.substring(4, 6));
         day = Number(str.substring(6, 8));
+      } else if (format === 'DDMMYYYY') {
+        year = Number(str.substring(4, 8));
+        month = Number(str.substring(2, 4));
+        day = Number(str.substring(0, 2));
+      } else if (format === 'MMDDYYYY') {
+        year = Number(str.substring(4, 8));
+        month = Number(str.substring(0, 2));
+        day = Number(str.substring(2, 4));
       } else if (format === 'DD/MM/YYYY') {
         [day, month, year] = str.split('/').map(Number);
       } else if (format === 'MM/DD/YYYY') {
@@ -173,8 +182,8 @@ export function Step1Import({ onNext }: Step1ImportProps) {
         if (parsedDate) {
           date = parsedDate;
           year = date.getFullYear();
-          month = String(date.getMonth() + 1).padStart(2, '0');
-          day = String(date.getDate()).padStart(2, '0');
+          month = date.getMonth() + 1;
+          day = date.getDate() + 1;
           dateString = `${year}-${month}-${day}`;
         } else {
           dateString = `Invalid Date ${dateStr}`;

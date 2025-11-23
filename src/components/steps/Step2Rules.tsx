@@ -10,6 +10,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { RuleHelpDialog } from '@/components/RuleHelpDialog';
 import { AIPromptDialog } from '@/components/AIPromptDialog';
@@ -108,17 +119,37 @@ function SortableRuleItem({ rule }: { rule: Rule }) {
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            deleteRule(rule.id);
-            applyRules();
-          }}
-          className="text-destructive hover:text-destructive"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Rule</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete the rule "{rule.category || 'Untitled'} / {rule.subcategory || 'Untitled'}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  deleteRule(rule.id);
+                  applyRules();
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
@@ -170,7 +201,7 @@ export function Step2Rules() {
       ? matchedTransactions
       : matchedTransactions.filter((t) => t.subcategory === filterCategory);
 
-  const uniqueSubCategories = Array.from(new Set(matchedTransactions.map((t) => t.subcategory)));
+  const uniqueSubCategories = Array.from(new Set(matchedTransactions.map((t) => t.subcategory).filter(Boolean))) as string[];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
@@ -273,7 +304,7 @@ export function Step2Rules() {
               <SelectContent>
                 <SelectItem value="all">All SubCategories</SelectItem>
                 {uniqueSubCategories.map((cat) => (
-                  <SelectItem key={cat} value={cat!}>
+                  <SelectItem key={cat} value={cat}>
                     {cat}
                   </SelectItem>
                 ))}
