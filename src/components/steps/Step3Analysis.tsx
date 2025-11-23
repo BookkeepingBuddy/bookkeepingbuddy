@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Download } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, ChevronsUpDown } from 'lucide-react';
 import { useFinanceStore } from '@/store/useFinanceStore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,9 +43,8 @@ export function Step3Analysis() {
     const data: Record<string, Record<string, PivotData>> = {};
 
     transactions
-      .filter((t) => t.category)
       .forEach((t) => {
-        const category = t.category!;
+        const category = t.category || 'Uncategorized';
         const subcategory = t.subcategory || 'Uncategorized';
         const month = t.dateString.substring(0, 7); // YYYY-MM
 
@@ -63,8 +62,8 @@ export function Step3Analysis() {
         if (!data[category][subcategory].months[month]) {
           data[category][subcategory].months[month] = 0;
         }
-        data[category][subcategory].months[month] += Math.abs(t.amount);
-        data[category][subcategory].total += Math.abs(t.amount);
+        data[category][subcategory].months[month] += t.amount;
+        data[category][subcategory].total += t.amount;
       });
 
     // Calculate averages
@@ -88,6 +87,26 @@ export function Step3Analysis() {
     return Array.from(months).sort();
   }, [pivotData]);
 
+  // Calculate totals for each month and grand total
+  const totals = useMemo(() => {
+    const monthTotals: Record<string, number> = {};
+    let grandTotal = 0;
+
+    Object.values(pivotData).forEach((subs) => {
+      Object.values(subs).forEach((item) => {
+        grandTotal += item.total;
+        Object.entries(item.months).forEach(([month, amount]) => {
+          monthTotals[month] = (monthTotals[month] || 0) + amount;
+        });
+      });
+    });
+
+    const monthCount = allMonths.length;
+    const average = monthCount > 0 ? grandTotal / monthCount : 0;
+
+    return { monthTotals, grandTotal, average };
+  }, [pivotData, allMonths]);
+
   const toggleCategory = (category: string) => {
     const newSet = new Set(expandedCategories);
     if (newSet.has(category)) {
@@ -98,6 +117,15 @@ export function Step3Analysis() {
     setExpandedCategories(newSet);
   };
 
+  const toggleAllCategories = () => {
+    const allCategories = Object.keys(pivotData);
+    if (expandedCategories.size === allCategories.length) {
+      setExpandedCategories(new Set());
+    } else {
+      setExpandedCategories(new Set(allCategories));
+    }
+  };
+
   const toggleSubcategory = (key: string) => {
     const newSet = new Set(expandedSubcategories);
     if (newSet.has(key)) {
@@ -106,6 +134,23 @@ export function Step3Analysis() {
       newSet.add(key);
     }
     setExpandedSubcategories(newSet);
+  };
+
+  const toggleAllSubcategories = () => {
+    // Get all possible subcategory keys
+    const allSubKeys: string[] = [];
+    Object.keys(pivotData).forEach((category) => {
+      Object.keys(pivotData[category]).forEach((subcategory) => {
+        allSubKeys.push(`${category}-${subcategory}`);
+      });
+    });
+
+    // If all are expanded, collapse all. Otherwise expand all.
+    if (expandedSubcategories.size === allSubKeys.length) {
+      setExpandedSubcategories(new Set());
+    } else {
+      setExpandedSubcategories(new Set(allSubKeys));
+    }
   };
 
   // Pie chart data
@@ -119,8 +164,8 @@ export function Step3Analysis() {
       });
     });
     return Object.entries(categoryTotals)
-      .filter(([_, value]) => value > 0)
-      .map(([name, value]) => ({ name, value }));
+      .filter(([_, value]) => value < 0)
+      .map(([name, value]) => ({ name, value: Math.abs(value) }));
   }, [pivotData, selectedMonth]);
 
   const pieDataSubcategories = useMemo(() => {
@@ -132,8 +177,8 @@ export function Step3Analysis() {
       });
     });
     return Object.entries(subTotals)
-      .filter(([_, value]) => value > 0)
-      .map(([name, value]) => ({ name, value }));
+      .filter(([_, value]) => value < 0)
+      .map(([name, value]) => ({ name, value: Math.abs(value) }));
   }, [pivotData, selectedMonth]);
 
   const handleExportData = () => {
@@ -239,82 +284,131 @@ export function Step3Analysis() {
 
       {/* Pivot Table */}
       <Card className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Pivot Table</h3>
-            <div className="flex gap-2">
-              <Button onClick={handleExportData} size="sm" variant="outline">
-                <Download className="w-4 h-4 mr-1" />
-                Export Data
-              </Button>
-              <Button onClick={handleExportConfig} size="sm" variant="outline">
-                <Download className="w-4 h-4 mr-1" />
-                Export Config
-              </Button>
-            </div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Pivot Table</h3>
+          <div className="flex gap-2">
+            <Button onClick={toggleAllCategories} size="sm" variant="outline">
+              <ChevronsUpDown className="w-4 h-4 mr-1" />
+              Toggle Subcategories
+            </Button>
+            <Button onClick={toggleAllSubcategories} size="sm" variant="outline">
+              <ChevronsUpDown className="w-4 h-4 mr-1" />
+              Toggle Transactions
+            </Button>
+            <Button onClick={handleExportData} size="sm" variant="outline">
+              <Download className="w-4 h-4 mr-1" />
+              Export Data
+            </Button>
+            <Button onClick={handleExportConfig} size="sm" variant="outline">
+              <Download className="w-4 h-4 mr-1" />
+              Export Config
+            </Button>
           </div>
+        </div>
 
-          <Input
-            placeholder="Filter by description..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="mb-4"
-          />
+        <Input
+          placeholder="Filter by description..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="mb-4"
+        />
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead className="bg-muted sticky top-0">
-                <tr>
-                  <th className="text-left p-2 border">Category / Subcategory</th>
-                  {allMonths.map((month) => (
-                    <th
-                      key={month}
-                      className={cn(
-                        'text-right p-2 border cursor-pointer transition-colors',
-                        selectedMonth === month && 'bg-primary/20',
-                        hoveredMonth === month && 'bg-accent/20'
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead className="bg-muted sticky top-0">
+              <tr>
+                <th className="text-left p-2 border">Category / Subcategory</th>
+                {allMonths.map((month) => (
+                  <th
+                    key={month}
+                    className={cn(
+                      'text-right p-2 border cursor-pointer transition-colors',
+                      selectedMonth === month && 'bg-primary/20',
+                      hoveredMonth === month && 'bg-accent/20'
+                    )}
+                    onClick={() => setSelectedMonth(selectedMonth === month ? null : month)}
+                    onMouseEnter={() => setHoveredMonth(month)}
+                    onMouseLeave={() => setHoveredMonth(null)}
+                  >
+                    {month}
+                  </th>
+                ))}
+                <th className="text-right p-2 border">Total</th>
+                <th className="text-right p-2 border">Avg</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.keys(pivotData).map((category) => {
+                const isExpanded = expandedCategories.has(category);
+                const categoryTotal = Object.values(pivotData[category]).reduce(
+                  (sum, sub) => sum + sub.total,
+                  0
+                );
+                const categoryMonthCount = Object.keys(
+                  Object.values(pivotData[category]).reduce(
+                    (months, sub) => ({ ...months, ...sub.months }),
+                    {} as Record<string, number>
+                  )
+                ).length;
+                const categoryAvg = categoryMonthCount > 0 ? categoryTotal / categoryMonthCount : 0;
+
+              return (
+              <React.Fragment key={category}>
+                <tr className="bg-primary/5 font-semibold hover:bg-primary/10 cursor-pointer">
+                  <td className="p-2 border" onClick={() => toggleCategory(category)}>
+                    <div className="flex items-center">
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4 mr-1" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 mr-1" />
                       )}
-                      onClick={() => setSelectedMonth(selectedMonth === month ? null : month)}
-                      onMouseEnter={() => setHoveredMonth(month)}
-                      onMouseLeave={() => setHoveredMonth(null)}
-                    >
-                      {month}
-                    </th>
-                  ))}
-                  <th className="text-right p-2 border">Total</th>
-                  <th className="text-right p-2 border">Avg</th>
+                      {category}
+                    </div>
+                  </td>
+                  {allMonths.map((month) => {
+                    const monthTotal = Object.values(pivotData[category]).reduce(
+                      (sum, sub) => sum + (sub.months[month] || 0),
+                      0
+                    );
+                    return (
+                      <td
+                        key={month}
+                        className={cn(
+                          'text-right p-2 border',
+                          selectedMonth === month && 'bg-primary/20',
+                          hoveredMonth === month && 'bg-accent/20'
+                        )}
+                        onClick={() => setSelectedMonth(selectedMonth === month ? null : month)}
+                        onMouseEnter={() => setHoveredMonth(month)}
+                        onMouseLeave={() => setHoveredMonth(null)}
+                      >
+                        {monthTotal !== 0 ? monthTotal.toFixed(2) : '-'}
+                      </td>
+                    );
+                  })}
+                  <td className="text-right p-2 border">{categoryTotal.toFixed(2)}</td>
+                  <td className="text-right p-2 border">{categoryAvg.toFixed(2)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {Object.keys(pivotData).map((category) => {
-                  const isExpanded = expandedCategories.has(category);
-                  const categoryTotal = Object.values(pivotData[category]).reduce(
-                    (sum, sub) => sum + sub.total,
-                    0
-                  );
-                  const categoryAvg = Object.values(pivotData[category]).reduce(
-                    (sum, sub) => sum + sub.average,
-                    0
-                  );
 
-                  return (
-                    <React.Fragment key={category}>
-                      <tr className="bg-primary/5 font-semibold hover:bg-primary/10 cursor-pointer">
-                        <td className="p-2 border" onClick={() => toggleCategory(category)}>
-                          <div className="flex items-center">
-                            {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 mr-1" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 mr-1" />
-                            )}
-                            {category}
-                          </div>
-                        </td>
-                        {allMonths.map((month) => {
-                          const monthTotal = Object.values(pivotData[category]).reduce(
-                            (sum, sub) => sum + (sub.months[month] || 0),
-                            0
-                          );
-                          return (
+                {isExpanded &&
+                  Object.entries(pivotData[category]).map(([subcategory, subData]) => {
+                    const subKey = `${category}-${subcategory}`;
+                    const isSubExpanded = expandedSubcategories.has(subKey);
+
+                    return (
+                      <React.Fragment key={subKey}>
+                        <tr className="bg-secondary/5 hover:bg-secondary/10 cursor-pointer">
+                          <td className="p-2 border pl-8" onClick={() => toggleSubcategory(subKey)}>
+                            <div className="flex items-center">
+                              {isSubExpanded ? (
+                                <ChevronDown className="w-4 h-4 mr-1" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 mr-1" />
+                              )}
+                              {subcategory}
+                            </div>
+                          </td>
+                          {allMonths.map((month) => (
                             <td
                               key={month}
                               className={cn(
@@ -326,32 +420,25 @@ export function Step3Analysis() {
                               onMouseEnter={() => setHoveredMonth(month)}
                               onMouseLeave={() => setHoveredMonth(null)}
                             >
-                              {monthTotal > 0 ? monthTotal.toFixed(2) : '-'}
+                              {subData.months[month] ? subData.months[month].toFixed(2) : '-'}
                             </td>
-                          );
-                        })}
-                        <td className="text-right p-2 border">{categoryTotal.toFixed(2)}</td>
-                        <td className="text-right p-2 border">{categoryAvg.toFixed(2)}</td>
-                      </tr>
+                          ))}
+                          <td className="text-right p-2 border">{subData.total.toFixed(2)}</td>
+                          <td className="text-right p-2 border">{subData.average.toFixed(2)}</td>
+                        </tr>
 
-                      {isExpanded &&
-                        Object.entries(pivotData[category]).map(([subcategory, subData]) => {
-                          const subKey = `${category}-${subcategory}`;
-                          const isSubExpanded = expandedSubcategories.has(subKey);
-
-                          return (
-                            <React.Fragment key={subKey}>
-                              <tr className="bg-secondary/5 hover:bg-secondary/10 cursor-pointer">
-                                <td className="p-2 border pl-8" onClick={() => toggleSubcategory(subKey)}>
-                                  <div className="flex items-center">
-                                    {isSubExpanded ? (
-                                      <ChevronDown className="w-4 h-4 mr-1" />
-                                    ) : (
-                                      <ChevronRight className="w-4 h-4 mr-1" />
-                                    )}
-                                    {subcategory}
-                                  </div>
-                                </td>
+                        {isSubExpanded &&
+                          transactions
+                            .filter(
+                              (t) =>
+                                t.category === category &&
+                                (t.subcategory || 'Uncategorized') === subcategory &&
+                                (!debouncedSearch ||
+                                  t.description.toLowerCase().includes(debouncedSearch.toLowerCase()))
+                            )
+                            .map((t, idx) => (
+                              <tr key={idx} className="hover:bg-muted/50 text-xs">
+                                <td className="p-2 border pl-12 truncate">{t.description}</td>
                                 {allMonths.map((month) => (
                                   <td
                                     key={month}
@@ -360,65 +447,55 @@ export function Step3Analysis() {
                                       selectedMonth === month && 'bg-primary/20',
                                       hoveredMonth === month && 'bg-accent/20'
                                     )}
-                                    onClick={() => setSelectedMonth(selectedMonth === month ? null : month)}
                                     onMouseEnter={() => setHoveredMonth(month)}
                                     onMouseLeave={() => setHoveredMonth(null)}
                                   >
-                                    {subData.months[month] ? subData.months[month].toFixed(2) : '-'}
+                                    {t.dateString.startsWith(month) ? t.amount.toFixed(2) : '-'}
                                   </td>
                                 ))}
-                                <td className="text-right p-2 border">{subData.total.toFixed(2)}</td>
-                                <td className="text-right p-2 border">{subData.average.toFixed(2)}</td>
+                                <td className="text-right p-2 border">{t.amount.toFixed(2)}</td>
+                                <td className="text-right p-2 border">-</td>
                               </tr>
+                            ))}
+                      </React.Fragment>
+                    );
+                  })}
+              </React.Fragment>
+              );
+              })}
+              {/* Total Row */}
+              <tr className="bg-muted font-bold sticky bottom-0">
+                <td className="p-2 border">Total</td>
+                {allMonths.map((month) => (
+                  <td
+                    key={month}
+                    className={cn(
+                      'text-right p-2 border',
+                      selectedMonth === month && 'bg-primary/20',
+                      hoveredMonth === month && 'bg-accent/20'
+                    )}
+                    onClick={() => setSelectedMonth(selectedMonth === month ? null : month)}
+                    onMouseEnter={() => setHoveredMonth(month)}
+                    onMouseLeave={() => setHoveredMonth(null)}
+                  >
+                    {totals.monthTotals[month] ? totals.monthTotals[month].toFixed(2) : '-'}
+                  </td>
+                ))}
+                <td className="text-right p-2 border">{totals.grandTotal.toFixed(2)}</td>
+                <td className="text-right p-2 border">{totals.average.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
-                              {isSubExpanded &&
-                                transactions
-                                  .filter(
-                                    (t) =>
-                                      t.category === category &&
-                                      (t.subcategory || 'Uncategorized') === subcategory &&
-                                      (!debouncedSearch ||
-                                        t.description.toLowerCase().includes(debouncedSearch.toLowerCase()))
-                                  )
-                                  .map((t, idx) => (
-                                    <tr key={idx} className="hover:bg-muted/50 text-xs">
-                                      <td className="p-2 border pl-12 truncate">{t.description}</td>
-                                      {allMonths.map((month) => (
-                                        <td
-                                          key={month}
-                                          className={cn(
-                                            'text-right p-2 border',
-                                            selectedMonth === month && 'bg-primary/20',
-                                            hoveredMonth === month && 'bg-accent/20'
-                                          )}
-                                          onMouseEnter={() => setHoveredMonth(month)}
-                                          onMouseLeave={() => setHoveredMonth(null)}
-                                        >
-                                          {t.dateString.startsWith(month) ? Math.abs(t.amount).toFixed(2) : '-'}
-                                        </td>
-                                      ))}
-                                      <td className="text-right p-2 border">{Math.abs(t.amount).toFixed(2)}</td>
-                                      <td className="text-right p-2 border">-</td>
-                                    </tr>
-                                  ))}
-                            </React.Fragment>
-                          );
-                        })}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-primary-light">
-          <h3 className="text-sm font-semibold mb-2">Privacy Notice</h3>
-          <p className="text-xs text-muted-foreground">
-            All data is processed locally in your browser. Nothing is sent to any server. Your financial information
-            remains completely private.
-          </p>
-        </Card>
+      <Card className="p-4 bg-primary-light">
+        <h3 className="text-sm font-semibold mb-2">Privacy Notice</h3>
+        <p className="text-xs text-muted-foreground">
+          All data is processed locally in your browser. Nothing is sent to any server. Your financial information
+          remains completely private.
+        </p>
+      </Card>
     </div>
   );
 }

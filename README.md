@@ -1,73 +1,94 @@
-# Welcome to your Lovable project
+# FinanceFlow
 
-## Project info
+A privacy-first financial analysis tool that runs 100% in your browser. No data is ever sent to any server.
 
-**URL**: https://lovable.dev/projects/23d8a637-e8bb-48e3-8dae-0f7c4aac6cde
+**Live Demo**: [https://bookkeepingbuddy.github.io/bookkeepingbuddy/](https://bookkeepingbuddy.github.io/bookkeepingbuddy/)
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- **Import Data**: Support for CSV, TXT, TAB, XLS, and XLSX files
+- **Column Mapping**: Flexible mapping for date, amount, and description columns
+- **Custom Rules**: JavaScript-based categorization rules with drag-and-drop reordering
+- **AI Integration**: Generate categorization rules with AI assistants (copy prompt to ChatGPT/Claude)
+- **Pivot Table**: Hierarchical view by category and subcategory with monthly breakdown
+- **Charts**: Pie charts showing distribution by category and subcategory
+- **Export**: Download categorized transactions as CSV or save/load configuration as JSON
 
-**Use Lovable**
+## Privacy
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/23d8a637-e8bb-48e3-8dae-0f7c4aac6cde) and start prompting.
+All data processing happens locally in your browser:
+- No backend server
+- No data transmission
+- No cookies or tracking
+- Configuration can be saved/loaded via JSON files
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
+### Using the hosted version
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Visit [https://bookkeepingbuddy.github.io/bookkeepingbuddy/](https://bookkeepingbuddy.github.io/bookkeepingbuddy/)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Running locally
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Clone the repository
+git clone https://github.com/BookkeepingBuddy/bookkeepingbuddy.git
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navigate to the project directory
+cd bookkeepingbuddy
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## How to Use
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Step 1: Import
+1. Drop your bank export file (CSV, XLS, etc.) into the data drop zone
+2. Configure column mapping for date, amount, and description
+3. Select the correct date format and decimal separator
 
-**Use GitHub Codespaces**
+### Step 2: Rules
+1. Create categorization rules using JavaScript
+2. Rules are evaluated in order - first match wins
+3. Use the AI Help button to generate rules automatically
+4. Drag and drop to reorder rules
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Example rules:
+```javascript
+// Match grocery store
+return row.description.toLowerCase().includes("albert heijn");
 
-## What technologies are used for this project?
+// Match rent payments
+return row.amount < -1000 && row.description.toLowerCase().includes("rent");
 
-This project is built with:
+// Match income
+return row.amount > 0;
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Step 3: Analysis
+1. View the pivot table with monthly breakdown
+2. Click on a month to see pie chart distributions
+3. Toggle categories and subcategories
+4. Export data or configuration
 
-## How can I deploy this project?
+## Tech Stack
 
-Simply open [Lovable](https://lovable.dev/projects/23d8a637-e8bb-48e3-8dae-0f7c4aac6cde) and click on Share -> Publish.
+- **Framework**: React + Vite
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui
+- **State**: Zustand
+- **Charts**: Recharts
+- **File Parsing**: PapaParse (CSV) + SheetJS (Excel)
+- **Drag & Drop**: dnd-kit
 
-## Can I connect a custom domain to my Lovable project?
+## Deployment
 
-Yes, you can!
+The app is automatically deployed to GitHub Pages via GitHub Actions on push to the `main` branch.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## License
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+MIT

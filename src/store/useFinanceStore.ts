@@ -23,6 +23,9 @@ export interface ColumnMapping {
 export interface Transaction {
   date: Date;
   dateString: string;
+  year: number;
+  month: number;
+  day: number;
   amount: number;
   description: string;
   category?: string;
@@ -54,7 +57,7 @@ interface FinanceStore {
   updateRule: (id: string, updates: Partial<Rule>) => void;
   deleteRule: (id: string) => void;
   reorderRules: (newOrder: Rule[]) => void;
-  applyRules: () => void;
+  applyRules: () => { dateParseErrors: number };
   setSelectedMonth: (month: string | null) => void;
   setHoveredMonth: (month: string | null) => void;
   exportConfig: () => string;
@@ -119,31 +122,42 @@ export const useFinanceStore = create<FinanceStore>()(
 
       applyRules: () => {
         const { parsedRows, columnMapping, rules } = get();
+        let dateParseErrors = 0;
 
         const startRow = columnMapping.hasHeaders ? 1 : 0;
         const dataRows = parsedRows.slice(startRow);
 
-        const parseDate = (dateStr: string, format: string): Date => {
+        const parseDate = (dateStr: string, format: string): Date | null => {
           const str = String(dateStr).trim();
+          if (!str) return null;
+
           let year = 0, month = 0, day = 0;
 
-          if (format === 'YYYY-MM-DD') {
-            [year, month, day] = str.split('-').map(Number);
-          } else if (format === 'DD-MM-YYYY') {
-            [day, month, year] = str.split('-').map(Number);
-          } else if (format === 'MM-DD-YYYY') {
-            [month, day, year] = str.split('-').map(Number);
-          } else if (format === 'YYYYMMDD') {
-            year = Number(str.substring(0, 4));
-            month = Number(str.substring(4, 6));
-            day = Number(str.substring(6, 8));
-          } else if (format === 'DD/MM/YYYY') {
-            [day, month, year] = str.split('/').map(Number);
-          } else if (format === 'MM/DD/YYYY') {
-            [month, day, year] = str.split('/').map(Number);
-          }
+          try {
+            if (format === 'YYYY-MM-DD') {
+              [year, month, day] = str.split('-').map(Number);
+            } else if (format === 'DD-MM-YYYY') {
+              [day, month, year] = str.split('-').map(Number);
+            } else if (format === 'MM-DD-YYYY') {
+              [month, day, year] = str.split('-').map(Number);
+            } else if (format === 'YYYYMMDD') {
+              year = Number(str.substring(0, 4));
+              month = Number(str.substring(4, 6));
+              day = Number(str.substring(6, 8));
+            } else if (format === 'DD/MM/YYYY') {
+              [day, month, year] = str.split('/').map(Number);
+            } else if (format === 'MM/DD/YYYY') {
+              [month, day, year] = str.split('/').map(Number);
+            }
 
-          return new Date(year, month - 1, day);
+            const date = new Date(year, month - 1, day);
+            if (isNaN(date.getTime()) || year < 1900 || year > 2100) {
+              return null;
+            }
+            return date;
+          } catch {
+            return null;
+          }
         };
 
         const transactions: Transaction[] = dataRows.filter((row) => row[columnMapping.amountIndex] !== undefined).map((row) => {
@@ -151,19 +165,27 @@ export const useFinanceStore = create<FinanceStore>()(
           row.forEach((cell, idx) => {
             const colName = columnMapping.columnNames[idx] || `col${idx}`;
             rawData[colName] = cell;
-            rawData[`col${idx}`] = cell;
           });
 
           // Parse date
           let date = new Date();
           let dateString = '';
+          let year = 0;
+          let month = 0;
+          let day = 0;
           if (columnMapping.dateIndex !== null) {
             const dateValue = String(row[columnMapping.dateIndex] || '');
-            date = parseDate(dateValue, columnMapping.dateFormat);
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            dateString = `${year}-${month}-${day}`;
+            const parsedDate = parseDate(dateValue, columnMapping.dateFormat);
+            if (parsedDate) {
+              date = parsedDate;
+              year = date.getFullYear();
+              month = date.getMonth() + 1;
+              day = date.getDate();
+              dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            } else {
+              dateParseErrors++;
+              dateString = 'Invalid Date';
+            }
             rawData.date = date;
           }
 
@@ -188,6 +210,9 @@ export const useFinanceStore = create<FinanceStore>()(
           const transaction: Transaction = {
             date,
             dateString,
+            year,
+            month,
+            day,
             amount,
             description,
             rawData,
@@ -214,6 +239,7 @@ export const useFinanceStore = create<FinanceStore>()(
         });
 
         set({ transactions });
+        return { dateParseErrors };
       },
 
       setSelectedMonth: (month) => set({ selectedMonth: month }),

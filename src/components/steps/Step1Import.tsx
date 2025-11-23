@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { FileDropZone } from '../FileDropZone';
-import { useFinanceStore } from '@/store/useFinanceStore';
+import { useFinanceStore, Transaction } from '@/store/useFinanceStore';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -65,7 +65,7 @@ export function Step1Import({ onNext }: Step1ImportProps) {
             setParsedRows(rows);
             const columnNames = hasHeaders
               ? rows[0].map((cell: any) => String(cell))
-              : rows[0]?.map((_, idx) => `Column ${idx}`) || [];
+              : [];
 
             setColumnMapping({ columnNames, hasHeaders });
             toast.success('File parsed successfully');
@@ -87,7 +87,7 @@ export function Step1Import({ onNext }: Step1ImportProps) {
         const hasHeaders = detectHeaders(jsonData);
         const columnNames = hasHeaders
           ? jsonData[0].map((cell: any) => String(cell))
-          : jsonData[0]?.map((_, idx) => `Column ${idx}`) || [];
+          : [];
 
         setColumnMapping({ columnNames, hasHeaders });
         toast.success('Excel file parsed successfully');
@@ -121,13 +121,12 @@ export function Step1Import({ onNext }: Step1ImportProps) {
   const getJsonPreview = () => {
     if (!previewRow) return {};
 
-    const json: Record<string, any> = {};
+    const rawData: Record<string, any> = {};
 
-    // previewRow.forEach((cell, idx) => {
-    //   const colName = columnMapping.columnNames[idx] || `col${idx}`;
-    //   json[colName] = cell;
-    //   json[`col${idx}`] = cell;
-    // });
+    previewRow.forEach((cell, idx) => {
+      const colName = columnMapping.columnNames[idx] || `col${idx}`;
+      rawData[colName] = cell;
+    });
 
     const parseDate = (dateStr: string, format: string): Date => {
       const str = String(dateStr).trim();
@@ -152,183 +151,225 @@ export function Step1Import({ onNext }: Step1ImportProps) {
       return new Date(year, month - 1, day);
     };
 
+    let date = new Date()
+    let dateString = ''
+    let year, month, day
     // Add parsed fields
     if (columnMapping.dateIndex !== null && previewRow[columnMapping.dateIndex]) {
       const dateStr = String(previewRow[columnMapping.dateIndex]);
-      json.date = parseDate(dateStr, columnMapping.dateFormat).toISOString().split("T")[0];
+      try {
+        const parsedDate = parseDate(dateStr, columnMapping.dateFormat);
+        if (parsedDate) {
+          date = parsedDate;
+          year = date.getFullYear();
+          month = String(date.getMonth() + 1).padStart(2, '0');
+          day = String(date.getDate()).padStart(2, '0');
+          dateString = `${year}-${month}-${day}`;
+        } else {
+          dateString = `Invalid Date ${dateStr}`;
+        }
+      } catch {
+        dateString = `[Invalid date: "${dateStr}"]`;
+      }
     }
+    let amount: number = 0
     if (columnMapping.amountIndex !== null && previewRow[columnMapping.amountIndex]) {
       let amountStr = String(previewRow[columnMapping.amountIndex]);
       if (columnMapping.decimalSeparator === ',') {
         amountStr = amountStr.replace(',', '.');
       }
-      json.amount = parseFloat(amountStr.replace(/[^0-9.-]/g, '')) || 0;
+      amount = parseFloat(amountStr.replace(/[^0-9.-]/g, '')) || 0;
     }
+    let description = ''
     if (columnMapping.descriptionIndices.length > 0) {
-      json.description = columnMapping.descriptionIndices
+      description = columnMapping.descriptionIndices
         .map((idx) => previewRow[idx])
         .join(' ');
     }
 
-    return json;
+    const transaction: Transaction = {
+      date,
+      dateString,
+      year,
+      month,
+      day,
+      amount,
+      description,
+      rawData,
+    };
+
+    return transaction;
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-      {/* Left Panel - Controls */}
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="p-4">
-            <FileDropZone
-              onFileDrop={handleDataFile}
-              accept=".csv,.txt,.tab,.xls,.xlsx"
-              title="Drop Data File"
-              description="CSV, TXT, TAB, XLS, XLSX"
-              className="p-4"
-            />
-          </Card>
-          <Card className="p-4">
-            <FileDropZone
-              onFileDrop={handleConfigFile}
-              accept=".json"
-              title="Drop Config File"
-              description="Restore settings"
-              className="p-4"
-            />
-          </Card>
+    <div className="container mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 h-full">
+        {/* Left Panel - Controls */}
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Card className="p-4">
+              <FileDropZone
+                onFileDrop={handleDataFile}
+                accept=".csv,.txt,.tab,.xls,.xlsx"
+                title="Drop Data File"
+                description="CSV, TXT, TAB, XLS, XLSX"
+                className="p-4"
+              />
+            </Card>
+            <Card className="p-4">
+              <FileDropZone
+                onFileDrop={handleConfigFile}
+                accept=".json"
+                title="Drop Config File"
+                description="Restore settings"
+                className="p-4"
+              />
+            </Card>
+          </div>
+
+          {parsedRows.length > 0 && (
+            <Card className="p-2">
+              <h3 className="text-lg font-semibold mb-2">Column Mapping</h3>
+              <div className="space-y-2">
+                {/* Date */}
+                <div>
+                  <Label>Date Column</Label>
+                  <Select
+                    value={columnMapping.dateIndex?.toString() || ''}
+                    onValueChange={(val) => setColumnMapping({ dateIndex: parseInt(val) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select column" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {previewRow?.map((cell, idx) => (
+                        <SelectItem key={idx} value={idx.toString()}>
+                          {columnMapping.columnNames[idx] || `Column ${idx}`}: {String(cell).substring(0, 30)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Date Format</Label>
+                  <Select
+                    value={columnMapping.dateFormat}
+                    onValueChange={(val) => setColumnMapping({ dateFormat: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DATE_FORMATS.map((fmt) => (
+                        <SelectItem key={fmt} value={fmt}>
+                          {fmt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <Label>Amount Column</Label>
+                  <Select
+                    value={columnMapping.amountIndex?.toString() || ''}
+                    onValueChange={(val) => setColumnMapping({ amountIndex: parseInt(val) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select column" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {previewRow?.map((cell, idx) => (
+                        <SelectItem key={idx} value={idx.toString()}>
+                          {columnMapping.columnNames[idx] || `Column ${idx}`}: {String(cell).substring(0, 30)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Decimal Separator</Label>
+                  <Select
+                    value={columnMapping.decimalSeparator}
+                    onValueChange={(val: '.' | ',') => setColumnMapping({ decimalSeparator: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value=".">Dot (.)</SelectItem>
+                      <SelectItem value=",">Comma (,)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <Label>Description Columns (Multiple)</Label>
+                  <div className="space-y-2 mt-2 max-h-40 overflow-y-auto">
+                    {previewRow?.map((cell, idx) => (
+                      <div key={idx} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`desc-${idx}`}
+                          checked={columnMapping.descriptionIndices.includes(idx)}
+                          onCheckedChange={(checked) => handleDescriptionToggle(idx, checked as boolean)}
+                        />
+                        <label htmlFor={`desc-${idx}`} className="text-sm cursor-pointer">
+                          {columnMapping.columnNames[idx] || `Column ${idx}`}: {String(cell).substring(0, 40)}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Button onClick={() => {
+                  const result = applyRules();
+                  if (result.dateParseErrors > 0) {
+                    toast.error(`${result.dateParseErrors} dates could not be parsed. Please check your date column and format settings.`);
+                  }
+                }} className="w-full">
+                  Apply Mapping
+                </Button>
+              </div>
+            </Card>
+          )}
         </div>
 
-        {parsedRows.length > 0 && (
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Column Mapping</h3>
-            <div className="space-y-4">
-              {/* Date */}
-              <div>
-                <Label>Date Column</Label>
-                <Select
-                  value={columnMapping.dateIndex?.toString() || ''}
-                  onValueChange={(val) => setColumnMapping({ dateIndex: parseInt(val) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select column" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {previewRow?.map((cell, idx) => (
-                      <SelectItem key={idx} value={idx.toString()}>
-                        {columnMapping.columnNames[idx] || `Column ${idx}`}: {String(cell).substring(0, 30)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* Right Panel - Preview */}
+        <div className="space-y-2 flex flex-col">
+          {rawFileContent && (
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Raw Preview (First 2 Lines)</h3>
+              <pre className="bg-muted p-4 rounded text-xs overflow-x-auto">
+                {rawFileContent.split('\n').slice(0, 2).join('\n')}
+              </pre>
+            </Card>
+          )}
 
-              <div>
-                <Label>Date Format</Label>
-                <Select
-                  value={columnMapping.dateFormat}
-                  onValueChange={(val) => setColumnMapping({ dateFormat: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DATE_FORMATS.map((fmt) => (
-                      <SelectItem key={fmt} value={fmt}>
-                        {fmt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Amount */}
-              <div>
-                <Label>Amount Column</Label>
-                <Select
-                  value={columnMapping.amountIndex?.toString() || ''}
-                  onValueChange={(val) => setColumnMapping({ amountIndex: parseInt(val) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select column" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {previewRow?.map((cell, idx) => (
-                      <SelectItem key={idx} value={idx.toString()}>
-                        {columnMapping.columnNames[idx] || `Column ${idx}`}: {String(cell).substring(0, 30)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Decimal Separator</Label>
-                <Select
-                  value={columnMapping.decimalSeparator}
-                  onValueChange={(val: '.' | ',') => setColumnMapping({ decimalSeparator: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value=".">Dot (.)</SelectItem>
-                    <SelectItem value=",">Comma (,)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Description */}
-              <div>
-                <Label>Description Columns (Multiple)</Label>
-                <div className="space-y-2 mt-2 max-h-40 overflow-y-auto">
-                  {previewRow?.map((cell, idx) => (
-                    <div key={idx} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`desc-${idx}`}
-                        checked={columnMapping.descriptionIndices.includes(idx)}
-                        onCheckedChange={(checked) => handleDescriptionToggle(idx, checked as boolean)}
-                      />
-                      <label htmlFor={`desc-${idx}`} className="text-sm cursor-pointer">
-                        {columnMapping.columnNames[idx] || `Column ${idx}`}: {String(cell).substring(0, 40)}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <Button onClick={applyRules} className="w-full">
-                Apply Mapping
+          {previewRow && (
+            <Card className="p-6 flex-1 flex flex-col">
+              <h3 className="text-lg font-semibold mb-4">JSON Preview (First Row)</h3>
+              <pre className="bg-muted p-4 rounded text-xs overflow-x-auto flex-1">
+                {JSON.stringify(getJsonPreview(), null, 2)}
+              </pre>
+              <p className="text-xs text-muted-foreground mt-2">
+                These property names are available in your JavaScript rules. Date is a Date object, amount is a number.
+              </p>
+              <Button onClick={() => {
+                const result = applyRules();
+                if (result.dateParseErrors > 0) {
+                  toast.error(`${result.dateParseErrors} dates could not be parsed. Please check your date column and format settings.`);
+                }
+                onNext();
+              }} className="w-full mt-4">
+                Next: Configure Rules →
               </Button>
-            </div>
-          </Card>
-        )}
-      </div>
-
-      {/* Right Panel - Preview */}
-      <div className="space-y-4 flex flex-col">
-        {rawFileContent && (
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Raw Preview (First 2 Lines)</h3>
-            <pre className="bg-muted p-4 rounded text-xs overflow-x-auto">
-              {rawFileContent.split('\n').slice(0, 2).join('\n')}
-            </pre>
-          </Card>
-        )}
-
-        {previewRow && (
-          <Card className="p-6 flex-1 flex flex-col">
-            <h3 className="text-lg font-semibold mb-4">JSON Preview (First Row)</h3>
-            <pre className="bg-muted p-4 rounded text-xs overflow-x-auto flex-1">
-              {JSON.stringify(getJsonPreview(), null, 2)}
-            </pre>
-            <p className="text-xs text-muted-foreground mt-2">
-              These property names are available in your JavaScript rules. Date is a Date object, amount is a number.
-            </p>
-            <Button onClick={() => { applyRules(); onNext(); }} className="w-full mt-4">
-              Next: Configure Rules →
-            </Button>
-          </Card>
-        )}
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );

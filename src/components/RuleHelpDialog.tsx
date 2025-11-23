@@ -35,8 +35,12 @@ const EXAMPLES = [
     explanation: 'Match if description contains a 4-digit number',
   },
   {
-    code: 'return row.date.getMonth() === 0;',
-    explanation: 'Match transactions in January (month 0)',
+    code: 'return row.month === 1;',
+    explanation: 'Match transactions in January',
+  },
+  {
+    code: 'return row.year === 2024 && row.month === 12;',
+    explanation: 'Match transactions from December 2024',
   },
   {
     code: 'return row.description.includes("ATM") && row.amount < 0;',
@@ -72,12 +76,15 @@ export function RuleHelpDialog() {
           <div className="bg-muted p-4 rounded-lg">
             <h4 className="font-semibold mb-2">Available Properties:</h4>
             <ul className="text-sm space-y-1 text-muted-foreground">
-              <li><code className="bg-background px-1 rounded">row.date</code> - Date object</li>
+              <li><code className="bg-background px-1 rounded">row.year</code> - Year as number (e.g., 2024)</li>
+              <li><code className="bg-background px-1 rounded">row.month</code> - Month as number (1-12)</li>
+              <li><code className="bg-background px-1 rounded">row.day</code> - Day as number (1-31)</li>
+              <li><code className="bg-background px-1 rounded">row.date</code> - JavaScript Date object</li>
               <li><code className="bg-background px-1 rounded">row.dateString</code> - Date as YYYY-MM-DD string</li>
               <li><code className="bg-background px-1 rounded">row.amount</code> - Number (positive for income, negative for expenses)</li>
               <li><code className="bg-background px-1 rounded">row.description</code> - String with transaction description</li>
               <li><code className="bg-background px-1 rounded">row.rawData.col0, row.rawData.col1, ...</code> - Raw column values by index</li>
-              <li><code className="bg-background px-1 rounded">row.rawData.Omschrijving, ...</code> - Raw column values by header name (if available)</li>
+              <li><code className="bg-background px-1 rounded">row.rawData.ColumnName, ...</code> - Raw column values by header name (if available)</li>
             </ul>
           </div>
 

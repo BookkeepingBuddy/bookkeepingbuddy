@@ -11,16 +11,17 @@ interface StepIndicatorProps {
   steps: Step[];
   currentStep: number;
   onStepClick: (stepId: number) => void;
+  compact?: boolean;
 }
 
-export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicatorProps) {
+export function StepIndicator({ steps, currentStep, onStepClick, compact = false }: StepIndicatorProps) {
   return (
-    <nav aria-label="Progress" className="mb-8">
-      <ol className="flex items-center justify-center space-x-4">
+    <nav aria-label="Progress" className={compact ? "" : "mb-8"}>
+      <ol className={cn("flex items-center justify-center", compact ? "space-x-2" : "space-x-4")}>
         {steps.map((step, index) => (
           <li key={step.id} className="flex items-center">
             {index > 0 && (
-              <div className="w-12 h-0.5 bg-border mx-2" />
+              <div className={cn("h-0.5 bg-border", compact ? "w-6 mx-1" : "w-12 mx-2")} />
             )}
             <button
               onClick={() => onStepClick(step.id)}
@@ -31,7 +32,8 @@ export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicator
             >
               <div
                 className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all",
+                  "flex items-center justify-center rounded-full border-2 transition-all",
+                  compact ? "h-7 w-7" : "h-10 w-10",
                   currentStep === step.id
                     ? "border-primary bg-primary text-primary-foreground"
                     : currentStep > step.id
@@ -40,15 +42,16 @@ export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicator
                 )}
               >
                 {currentStep > step.id ? (
-                  <Check className="h-5 w-5" />
+                  <Check className={compact ? "h-3 w-3" : "h-5 w-5"} />
                 ) : (
-                  <span className="text-sm font-semibold">{step.id}</span>
+                  <span className={cn("font-semibold", compact ? "text-xs" : "text-sm")}>{step.id}</span>
                 )}
               </div>
-              <div className="mt-2 text-center">
+              <div className={cn("text-center", compact ? "mt-1" : "mt-2")}>
                 <p
                   className={cn(
-                    "text-sm font-medium",
+                    "font-medium",
+                    compact ? "text-xs" : "text-sm",
                     currentStep === step.id
                       ? "text-primary"
                       : "text-muted-foreground"
@@ -56,9 +59,11 @@ export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicator
                 >
                   {step.name}
                 </p>
-                <p className="text-xs text-muted-foreground max-w-[120px]">
-                  {step.description}
-                </p>
+                {!compact && (
+                  <p className="text-xs text-muted-foreground max-w-[120px]">
+                    {step.description}
+                  </p>
+                )}
               </div>
             </button>
           </li>

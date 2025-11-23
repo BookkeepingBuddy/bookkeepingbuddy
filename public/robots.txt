@@ -12,3 +12,5 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+Sitemap: https://bookkeepingbuddy.github.io/bookkeepingbuddy/sitemap.xml
