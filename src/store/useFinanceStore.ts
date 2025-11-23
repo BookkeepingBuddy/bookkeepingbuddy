@@ -62,6 +62,8 @@ interface FinanceStore {
   setHoveredMonth: (month: string | null) => void;
   exportConfig: () => string;
   importConfig: (configJson: string) => void;
+  loadParsedRows: () => boolean;
+  clearParsedRows: () => void;
   reset: () => void;
 }
 
@@ -88,7 +90,15 @@ export const useFinanceStore = create<FinanceStore>()(
 
       setRawFileContent: (content) => set({ rawFileContent: content }),
 
-      setParsedRows: (rows) => set({ parsedRows: rows }),
+      setParsedRows: (rows) => {
+        set({ parsedRows: rows });
+        // Save to separate localStorage
+        try {
+          localStorage.setItem('finance-parsed-rows', JSON.stringify(rows));
+        } catch (err) {
+          console.error('Failed to save parsed rows to localStorage:', err);
+        }
+      },
 
       setColumnMapping: (mapping) =>
         set((state) => ({
@@ -262,7 +272,27 @@ export const useFinanceStore = create<FinanceStore>()(
         }
       },
 
-      reset: () =>
+      loadParsedRows: () => {
+        try {
+          const stored = localStorage.getItem('finance-parsed-rows');
+          if (stored) {
+            const rows = JSON.parse(stored);
+            set({ parsedRows: rows });
+            return true;
+          }
+        } catch (err) {
+          console.error('Failed to load parsed rows from localStorage:', err);
+        }
+        return false;
+      },
+
+      clearParsedRows: () => {
+        localStorage.removeItem('finance-parsed-rows');
+        set({ parsedRows: [], transactions: [] });
+      },
+
+      reset: () => {
+        localStorage.removeItem('finance-parsed-rows');
         set({
           rawFileContent: null,
           parsedRows: [],
@@ -271,7 +301,8 @@ export const useFinanceStore = create<FinanceStore>()(
           rules: [],
           selectedMonth: null,
           hoveredMonth: null,
-        }),
+        });
+      },
     }),
     {
       name: 'finance-tool-storage',

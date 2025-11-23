@@ -4,6 +4,8 @@ import { StepIndicator } from '@/components/StepIndicator';
 import { Step1Import } from '@/components/steps/Step1Import';
 import { Step2Rules } from '@/components/steps/Step2Rules';
 import { Step3Analysis } from '@/components/steps/Step3Analysis';
+import { StorageManager } from '@/components/StorageManager';
+import { ConfigEditor } from '@/components/ConfigEditor';
 
 const STEPS = [
   { id: 1, name: 'Import', description: 'Load data & map columns' },
@@ -30,6 +32,8 @@ const Index = () => {
                 <Lock className="w-3 h-3" />
                 <span className="text-xs font-medium">100% Client-Side</span>
               </div>
+              <ConfigEditor />
+              <StorageManager />
               <a
                 href="https://github.com/BookkeepingBuddy/bookkeepingbuddy"
                 target="_blank"
