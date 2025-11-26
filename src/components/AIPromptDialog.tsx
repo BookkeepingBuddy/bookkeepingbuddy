@@ -154,9 +154,14 @@ Please analyze these transactions and provide an updated configuration JSON with
 
   const handleImportConfig = () => {
     try {
-      // Try to parse to validate it's valid JSON
-      JSON.parse(importText);
-      importConfig(importText);
+      const config = JSON.parse(importText);
+      
+      // Import rules globally if present
+      if (config.rules && Array.isArray(config.rules)) {
+        const { rules } = useFinanceStore.getState();
+        useFinanceStore.setState({ rules: config.rules });
+      }
+      
       applyRules();
       toast.success('Configuration imported successfully!');
       setImportText('');

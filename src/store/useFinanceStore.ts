@@ -20,6 +20,14 @@ export interface ColumnMapping {
   hasHeaders: boolean;
 }
 
+export interface DataFile {
+  id: string;
+  name: string;
+  rawContent: string;
+  parsedRows: any[][];
+  columnMapping: ColumnMapping;
+}
+
 export interface Transaction {
   date: Date;
   dateString: string;
@@ -35,12 +43,8 @@ export interface Transaction {
 
 interface FinanceStore {
   // Data
-  rawFileContent: string | null;
-  parsedRows: any[][];
+  dataFiles: DataFile[];
   transactions: Transaction[];
-
-  // Mapping
-  columnMapping: ColumnMapping;
 
   // Rules
   rules: Rule[];
@@ -50,9 +54,9 @@ interface FinanceStore {
   hoveredMonth: string | null;
 
   // Actions
-  setRawFileContent: (content: string) => void;
-  setParsedRows: (rows: any[][]) => void;
-  setColumnMapping: (mapping: Partial<ColumnMapping>) => void;
+  addDataFile: (file: DataFile) => void;
+  removeDataFile: (id: string) => void;
+  updateDataFileMapping: (id: string, mapping: Partial<ColumnMapping>) => void;
   addRule: () => void;
   updateRule: (id: string, updates: Partial<Rule>) => void;
   deleteRule: (id: string) => void;
@@ -61,9 +65,7 @@ interface FinanceStore {
   setSelectedMonth: (month: string | null) => void;
   setHoveredMonth: (month: string | null) => void;
   exportConfig: () => string;
-  importConfig: (configJson: string) => void;
-  loadParsedRows: () => boolean;
-  clearParsedRows: () => void;
+  importConfig: (fileId: string, configJson: string) => void;
   reset: () => void;
 }
 
@@ -80,30 +82,33 @@ const initialColumnMapping: ColumnMapping = {
 export const useFinanceStore = create<FinanceStore>()(
   persist(
     (set, get) => ({
-      rawFileContent: null,
-      parsedRows: [],
+      dataFiles: [],
       transactions: [],
-      columnMapping: initialColumnMapping,
       rules: [],
       selectedMonth: null,
       hoveredMonth: null,
 
-      setRawFileContent: (content) => set({ rawFileContent: content }),
-
-      setParsedRows: (rows) => {
-        set({ parsedRows: rows });
-        // Save to separate localStorage
-        try {
-          localStorage.setItem('finance-parsed-rows', JSON.stringify(rows));
-        } catch (err) {
-          console.error('Failed to save parsed rows to localStorage:', err);
-        }
+      addDataFile: (file) => {
+        set((state) => ({
+          dataFiles: [...state.dataFiles, file],
+        }));
       },
 
-      setColumnMapping: (mapping) =>
+      removeDataFile: (id) => {
         set((state) => ({
-          columnMapping: { ...state.columnMapping, ...mapping },
-        })),
+          dataFiles: state.dataFiles.filter((f) => f.id !== id),
+        }));
+      },
+
+      updateDataFileMapping: (id, mapping) => {
+        set((state) => ({
+          dataFiles: state.dataFiles.map((file) =>
+            file.id === id
+              ? { ...file, columnMapping: { ...file.columnMapping, ...mapping } }
+              : file
+          ),
+        }));
+      },
 
       addRule: () => {
         const newRule: Rule = {
@@ -131,13 +136,17 @@ export const useFinanceStore = create<FinanceStore>()(
       reorderRules: (newOrder) => set({ rules: newOrder }),
 
       applyRules: () => {
-        const { parsedRows, columnMapping, rules } = get();
+        const { dataFiles, rules } = get();
         let dateParseErrors = 0;
+        const allTransactions: Transaction[] = [];
 
-        const startRow = columnMapping.hasHeaders ? 1 : 0;
-        const dataRows = parsedRows.slice(startRow);
+        // Process each data file
+        dataFiles.forEach((dataFile) => {
+          const { parsedRows, columnMapping } = dataFile;
+          const startRow = columnMapping.hasHeaders ? 1 : 0;
+          const dataRows = parsedRows.slice(startRow);
 
-        const parseDate = (dateStr: string, format: string): Date | null => {
+          const parseDate = (dateStr: string, format: string): Date | null => {
           const str = String(dateStr).trim();
           if (!str) return null;
 
@@ -175,10 +184,12 @@ export const useFinanceStore = create<FinanceStore>()(
             return date;
           } catch {
             return null;
-          }
-        };
+            }
+          };
 
-        const transactions: Transaction[] = dataRows.filter((row) => row[columnMapping.amountIndex] !== undefined).map((row) => {
+          const fileTransactions: Transaction[] = dataRows
+            .filter((row) => row[columnMapping.amountIndex!] !== undefined)
+            .map((row) => {
           const rawData: Record<string, any> = {};
           row.forEach((cell, idx) => {
             const colName = columnMapping.columnNames[idx] || `col${idx}`;
@@ -253,10 +264,13 @@ export const useFinanceStore = create<FinanceStore>()(
             }
           }
 
-          return transaction;
+              return transaction;
+            });
+
+          allTransactions.push(...fileTransactions);
         });
 
-        set({ transactions });
+        set({ transactions: allTransactions });
         return { dateParseErrors };
       },
 
@@ -264,48 +278,35 @@ export const useFinanceStore = create<FinanceStore>()(
       setHoveredMonth: (month) => set({ hoveredMonth: month }),
 
       exportConfig: () => {
-        const { columnMapping, rules } = get();
-        return JSON.stringify({ columnMapping, rules }, null, 2);
+        const { dataFiles, rules } = get();
+        return JSON.stringify({ dataFiles, rules }, null, 2);
       },
 
-      importConfig: (configJson) => {
+      importConfig: (fileId, configJson) => {
         try {
           const config = JSON.parse(configJson);
-          set({
-            columnMapping: config.columnMapping || initialColumnMapping,
-            rules: config.rules || [],
-          });
+          if (config.columnMapping) {
+            // Apply to specific file
+            set((state) => ({
+              dataFiles: state.dataFiles.map((file) =>
+                file.id === fileId
+                  ? { ...file, columnMapping: config.columnMapping }
+                  : file
+              ),
+            }));
+          }
+          if (config.rules) {
+            set({ rules: config.rules });
+          }
         } catch (err) {
           console.error('Invalid config JSON:', err);
         }
       },
 
-      loadParsedRows: () => {
-        try {
-          const stored = localStorage.getItem('finance-parsed-rows');
-          if (stored) {
-            const rows = JSON.parse(stored);
-            set({ parsedRows: rows });
-            return true;
-          }
-        } catch (err) {
-          console.error('Failed to load parsed rows from localStorage:', err);
-        }
-        return false;
-      },
-
-      clearParsedRows: () => {
-        localStorage.removeItem('finance-parsed-rows');
-        set({ parsedRows: [], transactions: [] });
-      },
-
       reset: () => {
-        localStorage.removeItem('finance-parsed-rows');
         set({
-          rawFileContent: null,
-          parsedRows: [],
+          dataFiles: [],
           transactions: [],
-          columnMapping: initialColumnMapping,
           rules: [],
           selectedMonth: null,
           hoveredMonth: null,
@@ -315,7 +316,7 @@ export const useFinanceStore = create<FinanceStore>()(
     {
       name: 'finance-tool-storage',
       partialize: (state) => ({
-        columnMapping: state.columnMapping,
+        dataFiles: state.dataFiles,
         rules: state.rules,
       }),
     }
