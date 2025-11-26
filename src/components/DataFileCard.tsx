@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Trash2, Upload } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,7 +27,7 @@ interface DataFileCardProps {
 }
 
 export function DataFileCard({ dataFile, onRemove }: DataFileCardProps) {
-  const { updateDataFileMapping, applyRules, importConfig } = useFinanceStore();
+  const { updateDataFileName, updateDataFileMapping, applyRules, importConfig } = useFinanceStore();
   const [previewRow, setPreviewRow] = useState<any[] | null>(
     dataFile.parsedRows.length > 0 ? dataFile.parsedRows[0] : null
   );
@@ -77,6 +78,9 @@ export function DataFileCard({ dataFile, onRemove }: DataFileCardProps) {
         .map((idx) => previewRow[idx])
         .join(' ');
     }
+    
+    // Add filename
+    json.filename = dataFile.name;
 
     return json;
   };
@@ -84,7 +88,18 @@ export function DataFileCard({ dataFile, onRemove }: DataFileCardProps) {
   return (
     <Card className="p-6 mb-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">{dataFile.name}</h3>
+        <div className="flex-1 max-w-md">
+          <Label className="text-xs mb-1">File Name</Label>
+          <Input
+            value={dataFile.name}
+            onChange={(e) => updateDataFileName(dataFile.id, e.target.value)}
+            className="h-8"
+            placeholder="Enter file name"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            {dataFile.parsedRows.length} rows • Available as <code className="bg-muted px-1 rounded">row.filename</code> in rules
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <input
             type="file"

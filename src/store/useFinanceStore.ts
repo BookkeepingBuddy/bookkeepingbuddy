@@ -56,6 +56,7 @@ interface FinanceStore {
   // Actions
   addDataFile: (file: DataFile) => void;
   removeDataFile: (id: string) => void;
+  updateDataFileName: (id: string, name: string) => void;
   updateDataFileMapping: (id: string, mapping: Partial<ColumnMapping>) => void;
   addRule: () => void;
   updateRule: (id: string, updates: Partial<Rule>) => void;
@@ -97,6 +98,14 @@ export const useFinanceStore = create<FinanceStore>()(
       removeDataFile: (id) => {
         set((state) => ({
           dataFiles: state.dataFiles.filter((f) => f.id !== id),
+        }));
+      },
+
+      updateDataFileName: (id, name) => {
+        set((state) => ({
+          dataFiles: state.dataFiles.map((file) =>
+            file.id === id ? { ...file, name } : file
+          ),
         }));
       },
 
@@ -195,6 +204,9 @@ export const useFinanceStore = create<FinanceStore>()(
             const colName = columnMapping.columnNames[idx] || `col${idx}`;
             rawData[colName] = cell;
           });
+          
+          // Add filename for use in rules
+          rawData.filename = dataFile.name;
 
           // Parse date
           let date = new Date();
