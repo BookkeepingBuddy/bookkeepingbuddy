@@ -31,6 +31,10 @@ const EXAMPLES = [
     explanation: 'Match positive amounts (income)',
   },
   {
+    code: 'return row.filename === "personal";',
+    explanation: 'Match transactions only from the file named "personal"',
+  },
+  {
     code: 'return row.description.match(/\\d{4}/);',
     explanation: 'Match if description contains a 4-digit number',
   },
@@ -83,6 +87,7 @@ export function RuleHelpDialog() {
               <li><code className="bg-background px-1 rounded">row.dateString</code> - Date as YYYY-MM-DD string</li>
               <li><code className="bg-background px-1 rounded">row.amount</code> - Number (positive for income, negative for expenses)</li>
               <li><code className="bg-background px-1 rounded">row.description</code> - String with transaction description</li>
+              <li><code className="bg-background px-1 rounded">row.filename</code> - String with the file name (useful for multi-file imports)</li>
               <li><code className="bg-background px-1 rounded">row.rawData.col0, row.rawData.col1, ...</code> - Raw column values by index</li>
               <li><code className="bg-background px-1 rounded">row.rawData.ColumnName, ...</code> - Raw column values by header name (if available)</li>
             </ul>

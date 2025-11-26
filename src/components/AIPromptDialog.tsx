@@ -27,6 +27,7 @@ export function AIPromptDialog() {
     day: t.day,
     amount: t.amount,
     description: t.description,
+    filename: t.filename,
   }));
 
   const generatePrompt = () => {
@@ -94,6 +95,7 @@ Each rule receives a \`row\` object with these properties:
 - \`row.dateString\` - Date as "YYYY-MM-DD" string
 - \`row.amount\` - Number (positive = income, negative = expense)
 - \`row.description\` - String with the transaction description
+- \`row.filename\` - String with the file name (useful for multi-file imports)
 - \`row.rawData\` - Object with all original columns (use \`row.rawData.columnName\`)
 
 ## Example Rules (JSON structure)
@@ -221,13 +223,13 @@ Please analyze these transactions and provide an updated configuration JSON with
                 </Button>
               </div>
             </div>
-            <pre className="text-xs overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto bg-background p-3 rounded">
+            <div className="text-xs whitespace-pre-wrap break-all max-h-96 overflow-y-auto bg-background p-3 rounded font-mono">
               {generatePrompt()}
-            </pre>
+            </div>
           </div>
 
           <div className="text-sm text-muted-foreground">
-            <p><strong>Note:</strong> The prompt includes your current rules and up to 20 sample unmatched transactions. No transaction data is sent anywhere automatically - you control what you share.</p>
+            <p><strong>Note:</strong> The prompt includes your current rules. Download unmatched transactions separately and paste them into the AI chat if needed. No data is sent anywhere automatically - you control what you share.</p>
           </div>
 
           <div className="border-t pt-4">

@@ -106,7 +106,7 @@ function SortableRuleItem({ rule }: { rule: Rule }) {
                   }
                 }
               }}
-              placeholder='return row.description.includes("Ticket");\n// or\nreturn row.amount > 1500;'
+              placeholder='return row.description.includes("Ticket");\n// or\nreturn row.amount > 1500;\n// or\nreturn row.filename === "personal";'
               className={cn(
                 'font-mono text-xs h-24',
                 !rule.isValid && 'border-error border-2'
