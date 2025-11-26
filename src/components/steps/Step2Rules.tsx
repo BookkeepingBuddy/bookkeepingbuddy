@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -160,6 +160,8 @@ export function Step2Rules() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [unmatchedFilter, setUnmatchedFilter] = useState('');
   const [unmatchedSort, setUnmatchedSort] = useState<'date' | 'amount-increasing' | 'amount-decreasing'>('date');
+  const rulesContainerRef = useRef<HTMLDivElement>(null);
+  const previousRulesCount = useRef(rules.length);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -167,6 +169,18 @@ export function Step2Rules() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Scroll to bottom when a new rule is added
+  useEffect(() => {
+    if (rules.length > previousRulesCount.current && rulesContainerRef.current) {
+      setTimeout(() => {
+        if (rulesContainerRef.current) {
+          rulesContainerRef.current.scrollTop = rulesContainerRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+    previousRulesCount.current = rules.length;
+  }, [rules.length]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -219,7 +233,7 @@ export function Step2Rules() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div ref={rulesContainerRef} className="flex-1 overflow-y-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
                 {rules.map((rule) => (
