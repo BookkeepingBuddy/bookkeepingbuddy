@@ -269,6 +269,7 @@ export function Step2Rules() {
                 <tr>
                   <th className="text-left p-2 w-24">Date</th>
                   <th className="text-left p-2">Description</th>
+                  <th className="text-left p-2 w-24">File</th>
                   <th className="text-right p-2 w-24">Amount</th>
                 </tr>
               </thead>
@@ -279,6 +280,7 @@ export function Step2Rules() {
                     <td className="p-2">
                       <div className="break-words">{t.description}</div>
                     </td>
+                    <td className="p-2 text-xs text-muted-foreground truncate" title={t.filename}>{t.filename}</td>
                     <td className="p-2 text-right whitespace-nowrap">{t.amount.toFixed(2)}</td>
                   </tr>
                 ))}
@@ -317,6 +319,7 @@ export function Step2Rules() {
                 <tr>
                   <th className="text-left p-2 w-24">Date</th>
                   <th className="text-left p-2">Description</th>
+                  <th className="text-left p-2 w-20">File</th>
                   <th className="text-left p-2 w-24">Category</th>
                   <th className="text-left p-2 w-28">Subcategory</th>
                   <th className="text-right p-2 w-20">Amount</th>
@@ -329,6 +332,7 @@ export function Step2Rules() {
                     <td className="p-2">
                       <div className="break-words">{t.description}</div>
                     </td>
+                    <td className="p-2 text-xs text-muted-foreground truncate" title={t.filename}>{t.filename}</td>
                     <td className="p-2">
                       <span className="px-2 py-0.5 bg-primary/10 text-primary rounded text-xs">
                         {t.category}

@@ -26,49 +26,30 @@ function validateConfig(configJson: string): ValidationResult {
   try {
     const config = JSON.parse(configJson);
 
-    // Check for required top-level keys
-    if (!config.columnMapping && !config.rules) {
-      errors.push('Config must have "columnMapping" or "rules" property');
-    }
-
-    // Validate columnMapping if present
-    if (config.columnMapping) {
-      const cm = config.columnMapping;
-      if (cm.dateIndex !== null && typeof cm.dateIndex !== 'number') {
-        errors.push('columnMapping.dateIndex must be a number or null');
-      }
-      if (cm.amountIndex !== null && typeof cm.amountIndex !== 'number') {
-        errors.push('columnMapping.amountIndex must be a number or null');
-      }
-      if (cm.descriptionIndices && !Array.isArray(cm.descriptionIndices)) {
-        errors.push('columnMapping.descriptionIndices must be an array');
-      }
-    }
-
-    // Validate rules if present
-    if (config.rules) {
-      if (!Array.isArray(config.rules)) {
-        errors.push('rules must be an array');
-      } else {
-        config.rules.forEach((rule: any, index: number) => {
-          if (!rule.id) {
-            warnings.push(`Rule ${index + 1}: missing id`);
+    // Check for rules array
+    if (!config.rules) {
+      errors.push('Config must have "rules" property');
+    } else if (!Array.isArray(config.rules)) {
+      errors.push('rules must be an array');
+    } else {
+      config.rules.forEach((rule: any, index: number) => {
+        if (!rule.id) {
+          warnings.push(`Rule ${index + 1}: missing id`);
+        }
+        if (!rule.category) {
+          warnings.push(`Rule ${index + 1}: missing category`);
+        }
+        if (!rule.jsCode) {
+          warnings.push(`Rule ${index + 1}: missing jsCode`);
+        } else {
+          // Try to validate the JavaScript code
+          try {
+            new Function('row', rule.jsCode);
+          } catch (e) {
+            errors.push(`Rule ${index + 1} (${rule.category || 'unnamed'}): Invalid JavaScript - ${e}`);
           }
-          if (!rule.category) {
-            warnings.push(`Rule ${index + 1}: missing category`);
-          }
-          if (!rule.jsCode) {
-            warnings.push(`Rule ${index + 1}: missing jsCode`);
-          } else {
-            // Try to validate the JavaScript code
-            try {
-              new Function('row', rule.jsCode);
-            } catch (e) {
-              errors.push(`Rule ${index + 1} (${rule.category || 'unnamed'}): Invalid JavaScript - ${e}`);
-            }
-          }
-        });
-      }
+        }
+      });
     }
 
     return { valid: errors.length === 0, errors, warnings };
@@ -106,18 +87,7 @@ export function ConfigEditor() {
     }
 
     try {
-      const config = JSON.parse(configText);
-      
-      // Import dataFiles if present
-      if (config.dataFiles && Array.isArray(config.dataFiles)) {
-        useFinanceStore.setState({ dataFiles: config.dataFiles });
-      }
-      
-      // Import rules if present
-      if (config.rules && Array.isArray(config.rules)) {
-        useFinanceStore.setState({ rules: config.rules });
-      }
-      
+      importConfig(configText);
       applyRules();
       toast.success('Config saved and applied!');
       setOpen(false);
@@ -135,9 +105,9 @@ export function ConfigEditor() {
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Edit Configuration</DialogTitle>
+          <DialogTitle>Edit Rules Configuration</DialogTitle>
           <DialogDescription>
-            Edit your column mapping and categorization rules directly as JSON.
+            Edit your categorization rules directly as JSON. Column mappings are stored with each file.
           </DialogDescription>
         </DialogHeader>
 

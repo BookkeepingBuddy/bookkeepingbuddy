@@ -1,11 +1,24 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Trash2, Upload } from 'lucide-react';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { DataFile } from '@/store/useFinanceStore';
 import { useFinanceStore } from '@/store/useFinanceStore';
 import { toast } from 'sonner';
@@ -27,10 +40,85 @@ interface DataFileCardProps {
 }
 
 export function DataFileCard({ dataFile, onRemove }: DataFileCardProps) {
-  const { updateDataFileName, updateDataFileMapping, applyRules, importConfig } = useFinanceStore();
+  const { updateDataFileName, updateDataFileMapping } = useFinanceStore();
   const [previewRow, setPreviewRow] = useState<any[] | null>(
     dataFile.parsedRows.length > 0 ? dataFile.parsedRows[0] : null
   );
+
+  const handleReplaceFile = useCallback(async (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+
+    try {
+      let parsedRows: any[][] = [];
+      let rawContent = '';
+
+      if (extension === 'csv' || extension === 'txt' || extension === 'tab') {
+        const text = await file.text();
+        rawContent = text;
+
+        const result = Papa.parse(text);
+        parsedRows = result.data as any[][];
+      } else if (extension === 'xls' || extension === 'xlsx') {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        parsedRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+        rawContent = XLSX.utils.sheet_to_csv(firstSheet);
+      } else {
+        toast.error('Unsupported file format');
+        return;
+      }
+
+      // Update the dataFile with new data but keep column mapping and settings
+      const updatedFile: DataFile = {
+        ...dataFile,
+        rawContent,
+        parsedRows,
+        filename: file.name, // Update original filename
+      };
+
+      // Use the store's internal setState to update the file
+      useFinanceStore.setState((state) => ({
+        dataFiles: state.dataFiles.map((f) =>
+          f.id === dataFile.id ? updatedFile : f
+        ),
+      }));
+
+      // Save to localStorage
+      useFinanceStore.getState().saveToLocalStorage();
+
+      setPreviewRow(parsedRows.length > 0 ? parsedRows[0] : null);
+      toast.success(`Data replaced for "${dataFile.name}"`);
+    } catch (error) {
+      toast.error('Failed to replace file');
+      console.error(error);
+    }
+  }, [dataFile]);
+
+  const handleFileDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) {
+        handleReplaceFile(files[0]);
+      }
+    },
+    [handleReplaceFile]
+  );
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleReplaceFile(files[0]);
+    }
+  };
 
   const handleDescriptionToggle = (index: number, checked: boolean) => {
     const current = dataFile.columnMapping.descriptionIndices;
@@ -38,16 +126,6 @@ export function DataFileCard({ dataFile, onRemove }: DataFileCardProps) {
       ? [...current, index].sort((a, b) => a - b)
       : current.filter((i) => i !== index);
     updateDataFileMapping(dataFile.id, { descriptionIndices: updated });
-  };
-
-  const handleConfigFile = async (file: File) => {
-    try {
-      const text = await file.text();
-      importConfig(dataFile.id, text);
-      toast.success('Configuration loaded for ' + dataFile.name);
-    } catch (error) {
-      toast.error('Invalid config file');
-    }
   };
 
   const getJsonPreview = () => {
@@ -97,31 +175,51 @@ export function DataFileCard({ dataFile, onRemove }: DataFileCardProps) {
             placeholder="Enter file name"
           />
           <p className="text-xs text-muted-foreground mt-1">
-            {dataFile.parsedRows.length} rows • Available as <code className="bg-muted px-1 rounded">row.filename</code> in rules
+            {dataFile.parsedRows.length} rows • Use <code className="bg-muted px-1 rounded">row.filename === '{dataFile.name}'</code> in rules
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="file"
-            accept=".json"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleConfigFile(file);
-            }}
-            className="hidden"
-            id={`config-input-${dataFile.id}`}
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => document.getElementById(`config-input-${dataFile.id}`)?.click()}
+          <div
+            onDrop={handleFileDrop}
+            onDragOver={handleDragOver}
+            className="border-2 border-dashed border-border rounded-lg px-3 py-2 transition-colors hover:border-primary hover:bg-muted/50 cursor-pointer"
           >
-            <Upload className="w-3 h-3 mr-1" />
-            Load Config
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onRemove} className="text-destructive">
-            <Trash2 className="w-4 h-4" />
-          </Button>
+            <input
+              type="file"
+              accept=".csv,.txt,.tab,.xls,.xlsx"
+              onChange={handleFileInput}
+              className="hidden"
+              id={`file-replace-${dataFile.id}`}
+            />
+            <label htmlFor={`file-replace-${dataFile.id}`} className="cursor-pointer flex items-center gap-2">
+              <Upload className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Replace data</span>
+            </label>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="icon" variant="ghost" className="text-destructive h-8 w-8">
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Data File</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete "{dataFile.name}"? This will remove all data and column mappings. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={onRemove}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
@@ -224,9 +322,9 @@ export function DataFileCard({ dataFile, onRemove }: DataFileCardProps) {
             </div>
           </div>
 
-          <Button onClick={applyRules} size="sm" className="w-full">
-            Apply Mapping
-          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Click "Next" to apply mapping and rules
+          </p>
         </div>
 
         {/* Right - Previews */}

@@ -27,29 +27,31 @@ function formatBytes(bytes: number): string {
 
 function getStorageItems(): StorageItem[] {
   const items: StorageItem[] = [];
-  const appKeys = ['finance-tool-storage', 'finance-parsed-rows'];
 
-  for (const key of appKeys) {
-    const value = localStorage.getItem(key);
-    if (value) {
-      const size = new Blob([value]).size;
-      let preview = '';
-      try {
-        const parsed = JSON.parse(value);
-        if (key === 'finance-parsed-rows') {
-          preview = `${Array.isArray(parsed) ? parsed.length : 0} rows`;
-        } else if (key === 'finance-tool-storage') {
-          const state = parsed.state || {};
-          preview = `${state.rules?.length || 0} rules`;
+  // Get all localStorage keys that belong to our app
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('finance-')) {
+      const value = localStorage.getItem(key);
+      if (value) {
+        const size = new Blob([value]).size;
+        let preview = '';
+        try {
+          const parsed = JSON.parse(value);
+          if (key === 'finance-config') {
+            preview = `${parsed.rules?.length || 0} rules`;
+          } else if (key.startsWith('finance-file-')) {
+            preview = `${parsed.name || 'Unknown'} - ${parsed.parsedRows?.length || 0} rows`;
+          }
+        } catch {
+          preview = 'Invalid JSON';
         }
-      } catch {
-        preview = 'Invalid JSON';
+        items.push({ key, size: formatBytes(size), preview });
       }
-      items.push({ key, size: formatBytes(size), preview });
     }
   }
 
-  return items;
+  return items.sort((a, b) => a.key.localeCompare(b.key));
 }
 
 export function StorageManager() {
@@ -67,8 +69,15 @@ export function StorageManager() {
   };
 
   const handleDeleteAll = () => {
-    localStorage.removeItem('finance-tool-storage');
-    localStorage.removeItem('finance-parsed-rows');
+    // Get all finance-* keys and delete them
+    const keysToDelete: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('finance-')) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => localStorage.removeItem(key));
     refreshItems();
     toast.success('All app data cleared');
   };

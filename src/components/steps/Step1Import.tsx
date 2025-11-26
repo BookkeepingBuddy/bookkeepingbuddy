@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useFinanceStore, DataFile } from '@/store/useFinanceStore';
@@ -22,7 +22,12 @@ interface Step1ImportProps {
 }
 
 export function Step1Import({ onNext }: Step1ImportProps) {
-  const { dataFiles, addDataFile, removeDataFile } = useFinanceStore();
+  const { dataFiles, addDataFile, removeDataFile, loadFromLocalStorage, importConfig } = useFinanceStore();
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    loadFromLocalStorage();
+  }, []);
 
   const detectHeaders = (rows: any[][]): boolean => {
     if (rows.length < 2) return false;
@@ -69,6 +74,7 @@ export function Step1Import({ onNext }: Step1ImportProps) {
       const newDataFile: DataFile = {
         id: `file-${Date.now()}-${Math.random()}`,
         name: file.name,
+        filename: file.name,
         rawContent,
         parsedRows,
         columnMapping: {
@@ -109,27 +115,79 @@ export function Step1Import({ onNext }: Step1ImportProps) {
     }
   };
 
+  const handleConfigFile = useCallback(async (file: File) => {
+    try {
+      const text = await file.text();
+      importConfig(text);
+      toast.success('Config imported successfully');
+    } catch (error) {
+      toast.error('Failed to import config');
+      console.error(error);
+    }
+  }, [importConfig]);
+
+  const handleConfigDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const files = Array.from(e.dataTransfer.files);
+      files.forEach((file) => handleConfigFile(file));
+    },
+    [handleConfigFile]
+  );
+
+  const handleConfigInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach((file) => handleConfigFile(file));
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Drop Zone */}
-      <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        className="border-2 border-dashed border-border rounded-lg p-6 text-center transition-colors hover:border-primary hover:bg-primary-light cursor-pointer"
-      >
-        <input
-          type="file"
-          accept=".csv,.txt,.tab,.xls,.xlsx"
-          onChange={handleFileInput}
-          className="hidden"
-          id="file-input-data"
-          multiple
-        />
-        <label htmlFor="file-input-data" className="cursor-pointer">
-          <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground mb-1">Drop Data Files</h3>
-          <p className="text-xs text-muted-foreground">CSV, TXT, TAB, or Excel files (multiple allowed)</p>
-        </label>
+      {/* Drop Zones */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Data Files Drop Zone */}
+        <div
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          className="border-2 border-dashed border-border rounded-lg p-6 text-center transition-colors hover:border-primary hover:bg-primary-light cursor-pointer"
+        >
+          <input
+            type="file"
+            accept=".csv,.txt,.tab,.xls,.xlsx"
+            onChange={handleFileInput}
+            className="hidden"
+            id="file-input-data"
+            multiple
+          />
+          <label htmlFor="file-input-data" className="cursor-pointer">
+            <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground mb-1">Drop Data Files</h3>
+            <p className="text-xs text-muted-foreground">CSV, TXT, TAB, or Excel files (multiple allowed)</p>
+          </label>
+        </div>
+
+        {/* Config Drop Zone */}
+        <div
+          onDrop={handleConfigDrop}
+          onDragOver={handleDragOver}
+          className="border-2 border-dashed border-border rounded-lg p-6 text-center transition-colors hover:border-primary hover:bg-primary-light cursor-pointer"
+        >
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleConfigInput}
+            className="hidden"
+            id="file-input-config"
+          />
+          <label htmlFor="file-input-config" className="cursor-pointer">
+            <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground mb-1">Drop Config File</h3>
+            <p className="text-xs text-muted-foreground">JSON config file with rules</p>
+          </label>
+        </div>
       </div>
 
       {/* Data File Cards */}

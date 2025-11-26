@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export interface Rule {
   id: string;
@@ -23,6 +22,7 @@ export interface ColumnMapping {
 export interface DataFile {
   id: string;
   name: string;
+  filename: string; // Original filename
   rawContent: string;
   parsedRows: any[][];
   columnMapping: ColumnMapping;
@@ -36,6 +36,7 @@ export interface Transaction {
   day: number;
   amount: number;
   description: string;
+  filename: string;
   category?: string;
   subcategory?: string;
   rawData: Record<string, any>;
@@ -66,23 +67,13 @@ interface FinanceStore {
   setSelectedMonth: (month: string | null) => void;
   setHoveredMonth: (month: string | null) => void;
   exportConfig: () => string;
-  importConfig: (fileId: string, configJson: string) => void;
+  importConfig: (configJson: string) => void;
+  saveToLocalStorage: () => void;
+  loadFromLocalStorage: () => void;
   reset: () => void;
 }
 
-const initialColumnMapping: ColumnMapping = {
-  dateIndex: null,
-  dateFormat: 'YYYY-MM-DD',
-  amountIndex: null,
-  decimalSeparator: '.',
-  descriptionIndices: [],
-  columnNames: [],
-  hasHeaders: false,
-};
-
-export const useFinanceStore = create<FinanceStore>()(
-  persist(
-    (set, get) => ({
+export const useFinanceStore = create<FinanceStore>()((set, get) => ({
       dataFiles: [],
       transactions: [],
       rules: [],
@@ -93,20 +84,41 @@ export const useFinanceStore = create<FinanceStore>()(
         set((state) => ({
           dataFiles: [...state.dataFiles, file],
         }));
+        get().saveToLocalStorage();
       },
 
       removeDataFile: (id) => {
+        const { dataFiles } = get();
+        const file = dataFiles.find(f => f.id === id);
+
+        // Remove from localStorage first
+        if (file) {
+          const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          localStorage.removeItem(`finance-file-${sanitizedName}`);
+        }
+
         set((state) => ({
           dataFiles: state.dataFiles.filter((f) => f.id !== id),
         }));
+        get().saveToLocalStorage();
       },
 
       updateDataFileName: (id, name) => {
+        const { dataFiles } = get();
+        const oldFile = dataFiles.find(f => f.id === id);
+
+        // Remove old localStorage entry if name changed
+        if (oldFile && oldFile.name !== name) {
+          const oldSanitizedName = oldFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          localStorage.removeItem(`finance-file-${oldSanitizedName}`);
+        }
+
         set((state) => ({
           dataFiles: state.dataFiles.map((file) =>
             file.id === id ? { ...file, name } : file
           ),
         }));
+        get().saveToLocalStorage();
       },
 
       updateDataFileMapping: (id, mapping) => {
@@ -117,6 +129,7 @@ export const useFinanceStore = create<FinanceStore>()(
               : file
           ),
         }));
+        get().saveToLocalStorage();
       },
 
       addRule: () => {
@@ -128,21 +141,29 @@ export const useFinanceStore = create<FinanceStore>()(
           isValid: true,
         };
         set((state) => ({ rules: [...state.rules, newRule] }));
+        get().saveToLocalStorage();
       },
 
-      updateRule: (id, updates) =>
+      updateRule: (id, updates) => {
         set((state) => ({
           rules: state.rules.map((rule) =>
             rule.id === id ? { ...rule, ...updates } : rule
           ),
-        })),
+        }));
+        get().saveToLocalStorage();
+      },
 
-      deleteRule: (id) =>
+      deleteRule: (id) => {
         set((state) => ({
           rules: state.rules.filter((rule) => rule.id !== id),
-        })),
+        }));
+        get().saveToLocalStorage();
+      },
 
-      reorderRules: (newOrder) => set({ rules: newOrder }),
+      reorderRules: (newOrder) => {
+        set({ rules: newOrder });
+        get().saveToLocalStorage();
+      },
 
       applyRules: () => {
         const { dataFiles, rules } = get();
@@ -256,6 +277,7 @@ export const useFinanceStore = create<FinanceStore>()(
             day,
             amount,
             description,
+            filename: dataFile.name,
             rawData,
           };
 
@@ -290,32 +312,87 @@ export const useFinanceStore = create<FinanceStore>()(
       setHoveredMonth: (month) => set({ hoveredMonth: month }),
 
       exportConfig: () => {
-        const { dataFiles, rules } = get();
-        return JSON.stringify({ dataFiles, rules }, null, 2);
+        const { rules } = get();
+        return JSON.stringify({ rules }, null, 2);
       },
 
-      importConfig: (fileId, configJson) => {
+      importConfig: (configJson) => {
         try {
           const config = JSON.parse(configJson);
-          if (config.columnMapping) {
-            // Apply to specific file
-            set((state) => ({
-              dataFiles: state.dataFiles.map((file) =>
-                file.id === fileId
-                  ? { ...file, columnMapping: config.columnMapping }
-                  : file
-              ),
-            }));
-          }
           if (config.rules) {
             set({ rules: config.rules });
+            get().saveToLocalStorage();
           }
         } catch (err) {
           console.error('Invalid config JSON:', err);
         }
       },
 
+      saveToLocalStorage: () => {
+        const { dataFiles, rules } = get();
+
+        // Save each data file separately (with all its data)
+        // Use sanitized filename as key
+        dataFiles.forEach((file) => {
+          try {
+            const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const key = `finance-file-${sanitizedName}`;
+            localStorage.setItem(key, JSON.stringify(file));
+          } catch (err) {
+            console.error(`Failed to save file ${file.name}:`, err);
+          }
+        });
+
+        // Save config (just rules)
+        try {
+          localStorage.setItem('finance-config', JSON.stringify({ rules }));
+        } catch (err) {
+          console.error('Failed to save config:', err);
+        }
+      },
+
+      loadFromLocalStorage: () => {
+        try {
+          // Load rules from config
+          const configStr = localStorage.getItem('finance-config');
+          const rules = configStr ? JSON.parse(configStr).rules || [] : [];
+
+          // Load all data files
+          const loadedFiles: DataFile[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('finance-file-')) {
+              const fileStr = localStorage.getItem(key);
+              if (fileStr) {
+                try {
+                  const file = JSON.parse(fileStr);
+                  loadedFiles.push(file);
+                } catch (err) {
+                  console.error(`Failed to parse file ${key}:`, err);
+                }
+              }
+            }
+          }
+
+          set({
+            dataFiles: loadedFiles,
+            rules,
+          });
+        } catch (err) {
+          console.error('Failed to load from localStorage:', err);
+        }
+      },
+
       reset: () => {
+        const { dataFiles } = get();
+
+        // Clear all file data from localStorage
+        dataFiles.forEach((file) => {
+          const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          localStorage.removeItem(`finance-file-${sanitizedName}`);
+        });
+        localStorage.removeItem('finance-config');
+
         set({
           dataFiles: [],
           transactions: [],
@@ -324,13 +401,4 @@ export const useFinanceStore = create<FinanceStore>()(
           hoveredMonth: null,
         });
       },
-    }),
-    {
-      name: 'finance-tool-storage',
-      partialize: (state) => ({
-        dataFiles: state.dataFiles,
-        rules: state.rules,
-      }),
-    }
-  )
-);
+}));
