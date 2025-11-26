@@ -105,10 +105,25 @@ export function ConfigEditor() {
       return;
     }
 
-    importConfig(configText);
-    applyRules();
-    toast.success('Config saved and applied!');
-    setOpen(false);
+    try {
+      const config = JSON.parse(configText);
+      
+      // Import dataFiles if present
+      if (config.dataFiles && Array.isArray(config.dataFiles)) {
+        useFinanceStore.setState({ dataFiles: config.dataFiles });
+      }
+      
+      // Import rules if present
+      if (config.rules && Array.isArray(config.rules)) {
+        useFinanceStore.setState({ rules: config.rules });
+      }
+      
+      applyRules();
+      toast.success('Config saved and applied!');
+      setOpen(false);
+    } catch (err) {
+      toast.error('Failed to import config');
+    }
   };
 
   return (
