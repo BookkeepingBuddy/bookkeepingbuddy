@@ -74,7 +74,7 @@ const Index = () => {
       {/* Main Content */}
       <main className="px-2 py-2">
         <div>
-          {currentStep === 1 && <Step1Import onNext={() => setCurrentStep(2)} />}
+          {currentStep === 1 && <Step1Import onNext={handleNext} />}
           {currentStep === 2 && <Step2Rules />}
           {currentStep === 3 && <Step3Analysis />}
         </div>
